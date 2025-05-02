@@ -1,0 +1,222 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { CheckIcon } from "lucide-react";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import { TargetingForm } from "@/components/campaign/targeting-form";
+import { PitchForm } from "@/components/campaign/pitch-form";
+import { OutreachForm } from "@/components/campaign/outreach-form";
+import { WorkflowForm } from "@/components/campaign/workflow-form";
+import { SettingsForm } from "@/components/campaign/settings-form";
+import { createCampaign } from "@/lib/actions/campaign";
+import { cn } from "@/lib/utils";
+
+const steps = [
+  { id: 0, label: "Targeting", description: "Define your target audience" },
+  { id: 1, label: "Pitch", description: "Create your company pitch" },
+  { id: 2, label: "Outreach", description: "Configure message content" },
+  { id: 3, label: "Workflow", description: "Set up follow-up sequence" },
+  { id: 4, label: "Settings", description: "Finalize campaign settings" },
+];
+
+export default function NewCampaignPage() {
+  const [activeStep, setActiveStep] = useState(0);
+  const [campaignId, setCampaignId] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+
+  // Form data state for each step
+  const [formData, setFormData] = useState({
+    targeting: null,
+    pitch: null,
+    outreach: null,
+    workflow: null,
+    settings: null,
+  });
+
+  const handleStepSubmit = async (step: string, data: any) => {
+    // Update form data for the current step
+    setFormData({
+      ...formData,
+      [step]: data,
+    });
+
+    // If this is the first step, create the campaign
+    if (step === "targeting" && !campaignId) {
+      setIsSubmitting(true);
+      try {
+        const campaign = await createCampaign("New Campaign");
+        setCampaignId(campaign.id);
+        toast.success("Campaign created successfully");
+      } catch (error) {
+        console.error("Error creating campaign:", error);
+        toast.error("Failed to create campaign");
+        return;
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+
+    // Save step data
+    if (campaignId) {
+      setIsSubmitting(true);
+      try {
+        // Call appropriate API to save step data
+        // e.g., await saveTargeting(campaignId, data);
+        toast.success(`${step} data saved successfully`);
+      } catch (error) {
+        console.error(`Error saving ${step} data:`, error);
+        toast.error(`Failed to save ${step} data`);
+        return;
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+
+    // Move to next step
+    if (activeStep < steps.length - 1) {
+      setActiveStep(activeStep + 1);
+    } else {
+      // Final step completed
+      router.push(`/campaigns/${campaignId}`);
+    }
+  };
+
+  // Map step index to step ID for form handling
+  const getStepId = (index: number): string => {
+    switch (index) {
+      case 0: return "targeting";
+      case 1: return "pitch";
+      case 2: return "outreach";
+      case 3: return "workflow"; 
+      case 4: return "settings";
+      default: return "targeting";
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold mb-8">Create New Campaign</h1>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Campaign Creation</CardTitle>
+          <CardDescription>
+            Complete each step to set up your sales campaign
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          {/* Custom Stepper Implementation */}
+          <div className="mb-8">
+            <div className="flex justify-between">
+              {steps.map((step, index) => (
+                <div 
+                  key={step.id}
+                  className={cn(
+                    "flex flex-col items-center relative",
+                    index < steps.length - 1 && "flex-1"
+                  )}
+                >
+                  {/* Connection line */}
+                  {index < steps.length - 1 && (
+                    <div 
+                      className={cn(
+                        "absolute top-4 left-1/2 w-full h-0.5 -z-10",
+                        activeStep > index 
+                          ? "bg-primary" 
+                          : "bg-muted"
+                      )}
+                    />
+                  )}
+                  
+                  {/* Step circle */}
+                  <button
+                    type="button"
+                    onClick={() => activeStep > step.id && setActiveStep(step.id)}
+                    disabled={activeStep < step.id}
+                    className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center mb-2 border-2",
+                      activeStep === step.id && "bg-primary text-primary-foreground border-primary",
+                      activeStep > step.id && "bg-primary text-primary-foreground border-primary",
+                      activeStep < step.id && "bg-background border-muted text-muted-foreground",
+                      activeStep >= step.id && "cursor-pointer"
+                    )}
+                  >
+                    {activeStep > step.id 
+                      ? <CheckIcon className="h-4 w-4" /> 
+                      : <span>{step.id + 1}</span>
+                    }
+                  </button>
+                  
+                  {/* Step label and description */}
+                  <div className="text-center">
+                    <span 
+                      className={cn(
+                        "text-sm font-medium",
+                        activeStep >= step.id ? "text-foreground" : "text-muted-foreground"
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                    <p className="text-xs text-muted-foreground hidden sm:block">
+                      {step.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-8">
+            {activeStep === 0 && (
+              <TargetingForm 
+                onSubmit={(data) => handleStepSubmit("targeting", data)} 
+                isSubmitting={isSubmitting}
+                initialData={formData.targeting}
+              />
+            )}
+            {activeStep === 1 && (
+              <PitchForm 
+                onSubmit={(data) => handleStepSubmit("pitch", data)}
+                isSubmitting={isSubmitting}
+                initialData={formData.pitch}
+              />
+            )}
+            {activeStep === 2 && (
+              <OutreachForm 
+                onSubmit={(data) => handleStepSubmit("outreach", data)}
+                isSubmitting={isSubmitting}
+                initialData={formData.outreach}
+              />
+            )}
+            {activeStep === 3 && (
+              <WorkflowForm 
+                onSubmit={(data) => handleStepSubmit("workflow", data)}
+                isSubmitting={isSubmitting}
+                initialData={formData.workflow}
+              />
+            )}
+            {activeStep === 4 && (
+              <SettingsForm 
+                onSubmit={(data) => handleStepSubmit("settings", data)}
+                isSubmitting={isSubmitting}
+                initialData={formData.settings}
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

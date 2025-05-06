@@ -1,9 +1,11 @@
+// Modified OutreachForm component
 "use client";
 
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Volume2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,16 +33,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { toast } from "sonner"; // Import toast for debugging
 
 const outreachFormSchema = z.object({
-  messageTone: z.string(),
-  selectedCta: z.string(),
+  messageTone: z.string().min(1, "Message tone is required"),
+  selectedCta: z.string().min(1, "Please select a CTA"),
   ctaOptions: z.array(
     z.object({
       id: z.string(),
       label: z.string().min(1, "CTA label is required"),
     })
-  ),
+  ).min(1, "Add at least one CTA option"),
   personalizationSources: z.array(
     z.object({
       id: z.string(),
@@ -120,11 +123,20 @@ export function OutreachForm({
     );
   };
 
-  // Toggle personalization source
+  // Handle form submission with debug logging
+  const handleFormSubmit = (data: OutreachFormValues) => {
+    console.log("Form submitted with data:", data);
+    try {
+      onSubmit(data);
+    } catch (error) {
+      console.error("Error in onSubmit handler:", error);
+      toast.error("Failed to submit form");
+    }
+  };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
         <Card>
           <CardHeader>
             <CardTitle>Message Tone</CardTitle>
@@ -162,6 +174,7 @@ export function OutreachForm({
                   <FormDescription>
                     This sets the overall tone of your email communication
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -202,6 +215,7 @@ export function OutreachForm({
                   <FormDescription>
                     Select your primary call-to-action
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -289,10 +303,23 @@ export function OutreachForm({
         </Card>
         
         <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || !form.formState.isValid}
+          >
             {isSubmitting ? "Saving..." : "Next"}
           </Button>
         </div>
+        
+        {/* Debug information - can be removed in production */}
+        {Object.keys(form.formState.errors).length > 0 && (
+          <div className="text-destructive text-sm p-2 border border-destructive rounded-md">
+            <p>Form validation errors:</p>
+            <pre className="text-xs mt-1 overflow-auto">
+              {JSON.stringify(form.formState.errors, null, 2)}
+            </pre>
+          </div>
+        )}
       </form>
     </Form>
   );

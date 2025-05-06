@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PlusCircle, UserCircle, X, Upload, FileText } from "lucide-react";
+import { PlusCircle, UserCircle, X, Upload, FileText, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -53,10 +53,54 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { apolloOrganizationService } from "@/lib/organization";
-import { apolloService } from "@/lib/contacts";
 import { toast } from "sonner";
 
+const API_BASE_URL = process.env.API_BASE_URL
+
+// Interface definitions
+interface Organization {
+  id: string;
+  name: string;
+  industry?: string;
+  employeeCount?: string;
+  website_url?: string;
+  linkedin_url?: string;
+}
+
+interface Contact {
+  id: string;
+  name: string;
+  title: string;
+  organization: {
+    name: string;
+  };
+  city?: string;
+  state?: string;
+  country?: string;
+  email?: string;
+}
+
+interface OrganizationSearchResponse {
+  organizations: Organization[];
+  pagination: {
+    total_entries: number;
+    per_page: number;
+    current_page: number;
+    total_pages: number;
+  };
+}
+
+interface ContactSearchResponse {
+  contacts: Contact[];
+  pagination: {
+    total_entries: number;
+    per_page: number;
+    current_page: number;
+    total_pages: number;
+  };
+}
+
+// Form schema
 const targetingFormSchema = z.object({
   organizations: z.array(
     z.object({
@@ -111,17 +155,22 @@ export function TargetingForm({
   initialData,
 }: TargetingFormProps) {
   const [organizationSearchTerm, setOrganizationSearchTerm] = useState("");
-  const [organizationSearchResults, setOrganizationSearchResults] = useState([]);
+  const [organizationSearchResults, setOrganizationSearchResults] = useState<Organization[]>([]);
   const [searchingOrganizations, setSearchingOrganizations] = useState(false);
   const [selectedJobTitles, setSelectedJobTitles] = useState<string[]>([]);
   const [jobTitleSearchTerm, setJobTitleSearchTerm] = useState("");
   const [filteredJobTitles, setFilteredJobTitles] = useState(jobTitleOptions);
-  const [contactSearchResults, setContactSearchResults] = useState([]);
+  const [contactSearchResults, setContactSearchResults] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [csvAlertOpen, setCsvAlertOpen] = useState(false);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalContacts, setTotalContacts] = useState(0);
   
   const form = useForm<TargetingFormValues>({
     resolver: zodResolver(targetingFormSchema),
@@ -132,7 +181,7 @@ export function TargetingForm({
     },
   });
   
-  // Handle organization search
+  // Fetch organizations from API
   useEffect(() => {
     const searchOrgs = async () => {
       if (organizationSearchTerm.length < 2) {
@@ -142,19 +191,28 @@ export function TargetingForm({
       
       setSearchingOrganizations(true);
       try {
-        const results = await apolloOrganizationService.searchOrganizations(
-          organizationSearchTerm,
-          (orgs) => {
-            setOrganizationSearchResults(orgs);
-            setSearchingOrganizations(false);
+        const response = await fetch(`${API_BASE_URL}/organizations/search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-          (error) => {
-            console.error("Error searching organizations:", error);
-            setSearchingOrganizations(false);
-          }
-        );
+          body: JSON.stringify({
+            name: organizationSearchTerm,
+            page: 1,
+            per_page: 10
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to search organizations');
+        }
+        
+        const data: OrganizationSearchResponse = await response.json();
+        setOrganizationSearchResults(data.organizations);
       } catch (error) {
         console.error("Error searching organizations:", error);
+        toast.error("Failed to search organizations");
+      } finally {
         setSearchingOrganizations(false);
       }
     };
@@ -185,6 +243,7 @@ export function TargetingForm({
       
       if (organizations.length === 0 && jobTitles.length === 0 && csvData.length === 0) {
         setContactSearchResults([]);
+        setTotalContacts(0);
         return;
       }
       
@@ -202,7 +261,10 @@ export function TargetingForm({
           country: contact.country,
           email: contact.email,
         }));
+        
         setContactSearchResults(formattedContacts);
+        setTotalContacts(formattedContacts.length);
+        setTotalPages(1);
         form.setValue("contacts", formattedContacts);
         return;
       }
@@ -215,8 +277,8 @@ export function TargetingForm({
       setLoadingContacts(true);
       try {
         const params: any = {
-          page: 1,
-          per_page: 25,
+          page: currentPage,
+          per_page: 10,
         };
         
         if (organizations.length > 0) {
@@ -224,24 +286,39 @@ export function TargetingForm({
         }
         
         if (jobTitles.length > 0) {
-          params.q_person_title = jobTitles;
+          params.title = jobTitles;
         }
         
-        const results = await apolloService.searchContacts(params);
-        setContactSearchResults(results.contacts);
-        form.setValue("contacts", results.contacts);
+        const response = await fetch(`${API_BASE_URL}/people/search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(params),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to search contacts');
+        }
+        
+        const data: ContactSearchResponse = await response.json();
+        setContactSearchResults(data.contacts);
+        setTotalContacts(data.pagination.total_entries);
+        setTotalPages(data.pagination.total_pages);
+        form.setValue("contacts", data.contacts);
       } catch (error) {
         console.error("Error searching contacts:", error);
+        toast.error("Failed to search contacts");
       } finally {
         setLoadingContacts(false);
       }
     };
     
     searchForContacts();
-  }, [form.watch("organizations"), form.watch("jobTitles"), csvData, form]);
+  }, [form.watch("organizations"), form.watch("jobTitles"), csvData, currentPage, form]);
 
   // Add an organization
-  const handleAddOrganization = (organization) => {
+  const handleAddOrganization = (organization: Organization) => {
     const currentOrganizations = form.getValues("organizations") || [];
     if (!currentOrganizations.some(org => org.id === organization.id)) {
       form.setValue("organizations", [...currentOrganizations, organization]);
@@ -250,7 +327,7 @@ export function TargetingForm({
   };
 
   // Remove an organization
-  const handleRemoveOrganization = (organizationId) => {
+  const handleRemoveOrganization = (organizationId: string) => {
     const currentOrganizations = form.getValues("organizations") || [];
     form.setValue(
       "organizations", 
@@ -259,7 +336,7 @@ export function TargetingForm({
   };
 
   // Add a job title
-  const handleAddJobTitle = (title) => {
+  const handleAddJobTitle = (title: string) => {
     const currentJobTitles = form.getValues("jobTitles") || [];
     if (!currentJobTitles.includes(title)) {
       form.setValue("jobTitles", [...currentJobTitles, title]);
@@ -278,7 +355,7 @@ export function TargetingForm({
     setSelectedJobTitles(selectedJobTitles.filter(t => t !== title));
   };
 
-  // Handle CSV file upload
+  // Handle file upload
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     if (file) {
@@ -324,7 +401,7 @@ export function TargetingForm({
           }
           
           // Filter out rows with missing required data
-          const validData = parsedData.filter(row => 
+          const validData = parsedData.filter((row: any) => 
             row.name && row.title && row.company
           );
           
@@ -381,11 +458,18 @@ export function TargetingForm({
     }
   };
 
+  // Handle pagination
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+  };
+
+  // Handle form submission
   const handleFormSubmit = (data: TargetingFormValues) => {
     // Include total results for pagination
     onSubmit({
       ...data,
-      totalResults: contactSearchResults.length,
+      totalResults: totalContacts,
     });
   };
 
@@ -407,7 +491,9 @@ export function TargetingForm({
                   <FileText className="mr-2 h-4 w-4" />
                   CSV Upload
                 </TabsTrigger>
-                <TabsTrigger value="results">Results ({contactSearchResults.length})</TabsTrigger>
+                <TabsTrigger value="results">
+                  Results ({totalContacts})
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="filters" className="space-y-6">
@@ -629,7 +715,7 @@ export function TargetingForm({
                   <div className="flex items-center justify-between mb-4">
                     <FormLabel>Matching Contacts</FormLabel>
                     <div className="text-sm text-muted-foreground">
-                      {contactSearchResults.length} results
+                      {totalContacts} results
                     </div>
                   </div>
                   
@@ -656,40 +742,67 @@ export function TargetingForm({
                       </p>
                     </div>
                   ) : (
-                    <ScrollArea className="h-[300px] border rounded-md p-2">
-                      <div className="space-y-2 pr-2">
-                        {contactSearchResults.map(contact => (
-                          <div
-                            key={contact.id}
-                            className="flex items-center gap-3 p-2 rounded-md hover:bg-accent"
-                          >
-                            <Avatar>
-                              <AvatarFallback>
-                                {contact.name.slice(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                              <div className="font-medium">{contact.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {contact.title} at {contact.organization.name}
+                    <>
+                      <ScrollArea className="h-[300px] border rounded-md p-2">
+                        <div className="space-y-2 pr-2">
+                          {contactSearchResults.map(contact => (
+                            <div
+                              key={contact.id}
+                              className="flex items-center gap-3 p-2 rounded-md hover:bg-accent"
+                            >
+                              <Avatar>
+                                <AvatarFallback>
+                                  {contact.name.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <div className="font-medium">{contact.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {contact.title} at {contact.organization.name}
+                                </div>
+                                {contact.email && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {contact.email}
+                                  </div>
+                                )}
+                                {contact.city && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {[contact.city, contact.state, contact.country]
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                  </div>
+                                )}
                               </div>
-                              {contact.email && (
-                                <div className="text-xs text-muted-foreground">
-                                  {contact.email}
-                                </div>
-                              )}
-                              {contact.city && (
-                                <div className="text-xs text-muted-foreground">
-                                  {[contact.city, contact.state, contact.country]
-                                    .filter(Boolean)
-                                    .join(", ")}
-                                </div>
-                              )}
                             </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      
+                      {/* Pagination */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-center space-x-2 mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1 || loadingContacts}
+                          >
+                            Previous
+                          </Button>
+                          <div className="text-sm">
+                            Page {currentPage} of {totalPages}
                           </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages || loadingContacts}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </TabsContent>
@@ -710,8 +823,18 @@ export function TargetingForm({
         />
         
         <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting || contactSearchResults.length === 0}>
-            {isSubmitting ? "Saving..." : "Next"}
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || contactSearchResults.length === 0}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Next"
+            )}
           </Button>
         </div>
       </form>

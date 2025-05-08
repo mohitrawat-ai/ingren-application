@@ -1,0 +1,1 @@
+ALTER TABLE "campaign_audiences" ADD COLUMN "csv_file_name" text;

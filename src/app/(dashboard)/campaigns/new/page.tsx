@@ -1,3 +1,4 @@
+// src/app/(dashboard)/campaigns/new/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -19,6 +20,7 @@ import { OutreachForm } from "@/components/campaign/outreach-form";
 import { WorkflowForm } from "@/components/campaign/workflow-form";
 import { SettingsForm } from "@/components/campaign/settings-form";
 import { createCampaign } from "@/lib/actions/campaign";
+import { createAudience } from "@/lib/actions/audience";
 import { cn } from "@/lib/utils";
 
 const steps = [
@@ -57,22 +59,34 @@ export default function NewCampaignPage() {
       try {
         const campaign = await createCampaign("New Campaign");
         setCampaignId(campaign.id);
-        toast.success("Campaign created successfully");
+        
+        // Create audience
+        await createAudience({
+          campaignId: campaign.id,
+          name: `Audience ${new Date().toLocaleDateString()}`,
+          contacts: data.contacts,
+          organizations: data.organizations,
+          jobTitles: data.jobTitles,
+          totalResults: data.totalResults,
+          csvFileName: data.csvFileName
+        });
+        
+        toast.success("Audience created successfully");
       } catch (error) {
-        console.error("Error creating campaign:", error);
-        toast.error("Failed to create campaign");
+        console.error("Error creating campaign and audience:", error);
+        toast.error("Failed to create campaign and audience");
         return;
       } finally {
         setIsSubmitting(false);
       }
     }
 
-    // Save step data
-    if (campaignId) {
+    // Save step data for other steps
+    if (campaignId && step !== "targeting") {
       setIsSubmitting(true);
       try {
         // Call appropriate API to save step data
-        // e.g., await saveTargeting(campaignId, data);
+        // e.g., await savePitch(campaignId, data);
         toast.success(`${step} data saved successfully`);
       } catch (error) {
         console.error(`Error saving ${step} data:`, error);
@@ -184,6 +198,7 @@ export default function NewCampaignPage() {
                 onSubmit={(data) => handleStepSubmit("targeting", data)} 
                 isSubmitting={isSubmitting}
                 initialData={formData.targeting}
+                campaignId={campaignId || 0}
               />
             )}
             {activeStep === 1 && (

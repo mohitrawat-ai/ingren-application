@@ -119,14 +119,6 @@ export const targetJobTitles = pgTable('target_job_titles', {
   title: text('title').notNull(),
 });
 
-// Campaign Audiences
-export const campaignAudiences = pgTable('campaign_audiences', {
-  id: serial('id').primaryKey(),
-  campaignId: integer('campaign_id').references(() => campaigns.id, { onDelete: 'cascade' }).notNull(),
-  name: text('name').notNull(),
-  totalResults: integer('total_results').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
 
 // Audience Contacts
 export const audienceContacts = pgTable('audience_contacts', {
@@ -141,6 +133,17 @@ export const audienceContacts = pgTable('audience_contacts', {
   email: text('email'),
   apolloId: text('apollo_id'),
 });
+
+// Add csvFileName to campaignAudiences table
+export const campaignAudiences = pgTable('campaign_audiences', {
+  id: serial('id').primaryKey(),
+  campaignId: integer('campaign_id').references(() => campaigns.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  totalResults: integer('total_results').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  csvFileName: text('csv_file_name'), // Added field for CSV file reference
+});
+
 
 // Schema relations
 export const campaignRelations = relations(campaigns, ({ one, many }) => ({
@@ -161,6 +164,21 @@ export const campaignRelations = relations(campaigns, ({ one, many }) => ({
     references: [campaignPitch.campaignId],
   }),
   audiences: many(campaignAudiences),
+}));
+
+export const audienceRelations = relations(campaignAudiences, ({ one, many }) => ({
+  campaign: one(campaigns, {
+    fields: [campaignAudiences.campaignId],
+    references: [campaigns.id],
+  }),
+  contacts: many(audienceContacts),
+}));
+
+export const audienceContactRelations = relations(audienceContacts, ({ one }) => ({
+  audience: one(campaignAudiences, {
+    fields: [audienceContacts.audienceId],
+    references: [campaignAudiences.id],
+  }),
 }));
 
 // URL Management

@@ -19,7 +19,7 @@ import { PitchForm } from "@/components/campaign/pitch-form";
 import { OutreachForm } from "@/components/campaign/outreach-form";
 import { WorkflowForm } from "@/components/campaign/workflow-form";
 import { SettingsForm } from "@/components/campaign/settings-form";
-import { createCampaign } from "@/lib/actions/campaign";
+import { createCampaign, savePitch, saveSettings } from "@/lib/actions/campaign";
 import { createAudience } from "@/lib/actions/audience";
 import { cn } from "@/lib/utils";
 
@@ -85,9 +85,32 @@ export default function NewCampaignPage() {
     if (campaignId && step !== "targeting") {
       setIsSubmitting(true);
       try {
-        // Call appropriate API to save step data
-        // e.g., await savePitch(campaignId, data);
-        toast.success(`${step} data saved successfully`);
+        // Call appropriate API to save step data based on the current step
+        switch (step) {
+          case "pitch":
+            console.log(JSON.stringify(data, null, 2))
+            await savePitch(campaignId, data);
+            toast.success("Pitch data saved successfully");
+            break;
+          case "outreach":
+            // Assuming there would be a saveOutreach function
+            // await saveOutreach(campaignId, data);
+            toast.success("Outreach data saved successfully");
+            break;
+          case "workflow":
+            // Assuming there would be a saveWorkflow function
+            // await saveWorkflow(campaignId, data);
+            toast.success("Workflow data saved successfully");
+            break;
+          case "settings":
+            console.log(JSON.stringify(data, null, 2))
+            await saveSettings(campaignId, {
+              ...data,
+              name: data.name || "New Campaign"
+            });
+            toast.success("Campaign settings saved successfully");
+            break;
+        }
       } catch (error) {
         console.error(`Error saving ${step} data:`, error);
         toast.error(`Failed to save ${step} data`);

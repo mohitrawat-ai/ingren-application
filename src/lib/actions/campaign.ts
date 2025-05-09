@@ -257,8 +257,8 @@ export async function saveTargeting(
 export async function savePitch(
   campaignId: number,
   data: {
-    companyUrl: string;
-    companyDescription: string;
+    url: string;
+    description: string;
     features: Array<{
       problem: string;
       solution: string;
@@ -288,14 +288,14 @@ export async function savePitch(
       .insert(campaignPitch)
       .values({
         campaignId,
-        companyUrl: data.companyUrl,
-        companyDescription: data.companyDescription,
+        companyUrl: data.url,
+        companyDescription: data.description,
       })
       .onConflictDoUpdate({
         target: [campaignPitch.campaignId],
         set: {
-          companyUrl: data.companyUrl,
-          companyDescription: data.companyDescription,
+          companyUrl: data.url,
+          companyDescription: data.description,
         },
       })
       .returning();
@@ -322,26 +322,31 @@ export async function savePitch(
 export async function saveSettings(
   campaignId: number,
   data: {
-    fromName: string;
-    fromEmail: string;
-    emailService: string;
-    timezone: string;
-    trackOpens: boolean;
-    trackClicks: boolean;
-    dailySendLimit: number;
-    unsubscribeLink: boolean;
-    sendingStartTime: string;
-    sendingEndTime: string;
-    sendingDays: {
-      monday: boolean;
-      tuesday: boolean;
-      wednesday: boolean;
-      thursday: boolean;
-      friday: boolean;
-      saturday: boolean;
-      sunday: boolean;
-    };
-    name: string;
+    emailSettings : {
+      fromName: string;
+      fromEmail: string;
+      emailService: string;
+    },campaignSettings : {
+      timezone: string;
+      trackOpens: boolean;
+      trackClicks: boolean;
+      dailySendLimit: number;
+      unsubscribeLink: boolean;
+      sendingTime: {
+        startTime: string;
+        endTime: string;
+      };
+      sendingDays: {
+        monday: boolean;
+        tuesday: boolean;
+        wednesday: boolean;
+        thursday: boolean;
+        friday: boolean;
+        saturday: boolean;
+        sunday: boolean;
+      };
+      name: string;
+  }
   }
 ) {
   const session = await auth();
@@ -365,7 +370,7 @@ export async function saveSettings(
     // Update campaign name
     await tx
       .update(campaigns)
-      .set({ name: data.name })
+      .set({ name: data.campaignSettings.name })
       .where(eq(campaigns.id, campaignId));
 
     // Update campaign settings
@@ -373,30 +378,30 @@ export async function saveSettings(
       .insert(campaignSettings)
       .values({
         campaignId,
-        fromName: data.fromName,
-        fromEmail: data.fromEmail,
-        emailService: data.emailService,
-        timezone: data.timezone,
-        trackOpens: data.trackOpens,
-        trackClicks: data.trackClicks,
-        dailySendLimit: data.dailySendLimit,
-        unsubscribeLink: data.unsubscribeLink,
-        sendingStartTime: data.sendingStartTime,
-        sendingEndTime: data.sendingEndTime,
+        fromName: data.emailSettings.fromName,
+        fromEmail: data.emailSettings.fromEmail,
+        emailService: data.emailSettings.emailService,
+        timezone: data.campaignSettings.timezone,
+        trackOpens: data.campaignSettings.trackOpens,
+        trackClicks: data.campaignSettings.trackClicks,
+        dailySendLimit: data.campaignSettings.dailySendLimit,
+        unsubscribeLink: data.campaignSettings.unsubscribeLink,
+        sendingStartTime: data.campaignSettings.sendingTime.startTime,
+        sendingEndTime: data.campaignSettings.sendingTime.endTime,
       })
       .onConflictDoUpdate({
         target: [campaignSettings.campaignId],
         set: {
-          fromName: data.fromName,
-          fromEmail: data.fromEmail,
-          emailService: data.emailService,
-          timezone: data.timezone,
-          trackOpens: data.trackOpens,
-          trackClicks: data.trackClicks,
-          dailySendLimit: data.dailySendLimit,
-          unsubscribeLink: data.unsubscribeLink,
-          sendingStartTime: data.sendingStartTime,
-          sendingEndTime: data.sendingEndTime,
+          fromName: data.emailSettings.fromName,
+          fromEmail: data.emailSettings.fromEmail,
+          emailService: data.emailSettings.emailService,
+          timezone: data.campaignSettings.timezone,
+          trackOpens: data.campaignSettings.trackOpens,
+          trackClicks: data.campaignSettings.trackClicks,
+          dailySendLimit: data.campaignSettings.dailySendLimit,
+          unsubscribeLink: data.campaignSettings.unsubscribeLink,
+          sendingStartTime: data.campaignSettings.sendingTime.startTime,
+          sendingEndTime: data.campaignSettings.sendingTime.endTime,
         },
       });
 
@@ -405,24 +410,24 @@ export async function saveSettings(
       .insert(campaignSendingDays)
       .values({
         campaignId,
-        monday: data.sendingDays.monday,
-        tuesday: data.sendingDays.tuesday,
-        wednesday: data.sendingDays.wednesday,
-        thursday: data.sendingDays.thursday,
-        friday: data.sendingDays.friday,
-        saturday: data.sendingDays.saturday,
-        sunday: data.sendingDays.sunday,
+        monday: data.campaignSettings.sendingDays.monday,
+        tuesday: data.campaignSettings.sendingDays.tuesday,
+        wednesday: data.campaignSettings.sendingDays.wednesday,
+        thursday: data.campaignSettings.sendingDays.thursday,
+        friday: data.campaignSettings.sendingDays.friday,
+        saturday: data.campaignSettings.sendingDays.saturday,
+        sunday: data.campaignSettings.sendingDays.sunday,
       })
       .onConflictDoUpdate({
         target: [campaignSendingDays.campaignId],
         set: {
-          monday: data.sendingDays.monday,
-          tuesday: data.sendingDays.tuesday,
-          wednesday: data.sendingDays.wednesday,
-          thursday: data.sendingDays.thursday,
-          friday: data.sendingDays.friday,
-          saturday: data.sendingDays.saturday,
-          sunday: data.sendingDays.sunday,
+          monday: data.campaignSettings.sendingDays.monday,
+          tuesday: data.campaignSettings.sendingDays.tuesday,
+          wednesday: data.campaignSettings.sendingDays.wednesday,
+          thursday: data.campaignSettings.sendingDays.thursday,
+          friday: data.campaignSettings.sendingDays.friday,
+          saturday: data.campaignSettings.sendingDays.saturday,
+          sunday: data.campaignSettings.sendingDays.sunday,
         },
       });
   });

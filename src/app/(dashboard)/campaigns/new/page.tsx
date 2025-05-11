@@ -23,6 +23,94 @@ import { createCampaign, savePitch, saveSettings } from "@/lib/actions/campaign"
 import { createAudience } from "@/lib/actions/audience";
 import { cn } from "@/lib/utils";
 
+// Define types for each form's data structure
+interface TargetingFormData {
+  organizations?: {
+    id: string;
+    name: string;
+    industry?: string;
+    employeeCount?: string;
+  }[];
+  jobTitles?: string[];
+  contacts: {
+    id: string;
+    name: string;
+    title: string;
+    organization: {
+      name: string;
+    };
+    city?: string;
+    state?: string;
+    country?: string;
+    email?: string;
+    [key: string]: unknown; // For additional fields
+  }[];
+  totalResults?: number;
+  csvFileName?: string;
+}
+
+interface PitchFormData {
+  url: string;
+  description: string;
+  features: Array<{
+    id: number;
+    problem: string;
+    solution: string;
+  }>;
+}
+
+interface OutreachFormData {
+  messageTone: string;
+  selectedCta: string;
+  ctaOptions: Array<{
+    id: string;
+    label: string;
+  }>;
+  personalizationSources: Array<{
+    id: string;
+    label: string;
+    enabled: boolean;
+  }>;
+}
+
+interface WorkflowFormData {
+  enableFollowUp: boolean;
+  followUpConfig: {
+    waitDays: number;
+    emailSubject?: string;
+    emailBody?: string;
+  };
+}
+
+interface SettingsFormData {
+  emailSettings: {
+    fromName: string;
+    fromEmail: string;
+    emailService: string;
+  };
+  campaignSettings: {
+    name: string;
+    timezone: string;
+    trackOpens: boolean;
+    trackClicks: boolean;
+    dailySendLimit: number;
+    unsubscribeLink: boolean;
+    sendingTime: {
+      startTime: string;
+      endTime: string;
+    };
+    sendingDays: {
+      monday: boolean;
+      tuesday: boolean;
+      wednesday: boolean;
+      thursday: boolean;
+      friday: boolean;
+      saturday: boolean;
+      sunday: boolean;
+    };
+  };
+}
+
 const steps = [
   { id: 0, label: "Targeting", description: "Define your target audience" },
   { id: 1, label: "Pitch", description: "Create your company pitch" },
@@ -37,8 +125,80 @@ export default function NewCampaignPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
-  // Form data state for each step
-  const [formData, setFormData] = useState({
+  // Default values for each form
+  const defaultTargetingData: TargetingFormData = {
+    organizations: [],
+    jobTitles: [],
+    contacts: [],
+  };
+
+  const defaultPitchData: PitchFormData = {
+    url: "",
+    description: "",
+    features: [
+      { problem: "", solution: "", id: 1 }
+    ],
+  };
+
+  const defaultOutreachData: OutreachFormData = {
+    messageTone: "professional",
+    selectedCta: "call",
+    ctaOptions: [
+      { id: "call", label: "Schedule a Call" },
+      { id: "demo", label: "Request a Demo" },
+    ],
+    personalizationSources: [
+      { id: "linkedin", label: "LinkedIn Profile Data", enabled: true },
+      { id: "website", label: "Company Website", enabled: false },
+    ],
+  };
+
+  const defaultWorkflowData: WorkflowFormData = {
+    enableFollowUp: false,
+    followUpConfig: {
+      waitDays: 3,
+      emailSubject: "",
+      emailBody: "",
+    },
+  };
+
+  const defaultSettingsData: SettingsFormData = {
+    emailSettings: {
+      fromName: "",
+      fromEmail: "",
+      emailService: "",
+    },
+    campaignSettings: {
+      name: "",
+      timezone: "UTC",
+      trackOpens: true,
+      trackClicks: true,
+      dailySendLimit: 500,
+      unsubscribeLink: true,
+      sendingTime: {
+        startTime: "09:00",
+        endTime: "17:00",
+      },
+      sendingDays: {
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+      },
+    },
+  };
+
+  // Form data state for each step with proper typing
+  const [formData, setFormData] = useState<{
+    targeting: TargetingFormData | null;
+    pitch: PitchFormData | null;
+    outreach: OutreachFormData | null;
+    workflow: WorkflowFormData | null;
+    settings: SettingsFormData | null;
+  }>({
     targeting: null,
     pitch: null,
     outreach: null,
@@ -46,7 +206,7 @@ export default function NewCampaignPage() {
     settings: null,
   });
 
-  const handleStepSubmit = async (step: string, data: any) => {
+  const handleStepSubmit = async (step: string, data: unknown) => {
     // Update form data for the current step
     setFormData({
       ...formData,
@@ -60,15 +220,16 @@ export default function NewCampaignPage() {
         const campaign = await createCampaign("New Campaign");
         setCampaignId(campaign.id);
         
-        // Create audience
+        // Create audience with properly typed data
+        const targetingData = data as TargetingFormData;
         await createAudience({
           campaignId: campaign.id,
           name: `Audience ${new Date().toLocaleDateString()}`,
-          contacts: data.contacts,
-          organizations: data.organizations,
-          jobTitles: data.jobTitles,
-          totalResults: data.totalResults,
-          csvFileName: data.csvFileName
+          contacts: targetingData.contacts,
+          organizations: targetingData.organizations,
+          jobTitles: targetingData.jobTitles,
+          totalResults: targetingData.totalResults || targetingData.contacts.length,
+          csvFileName: targetingData.csvFileName
         });
         
         toast.success("Audience created successfully");
@@ -88,8 +249,8 @@ export default function NewCampaignPage() {
         // Call appropriate API to save step data based on the current step
         switch (step) {
           case "pitch":
-            console.log(JSON.stringify(data, null, 2))
-            await savePitch(campaignId, data);
+            const pitchData = data as PitchFormData;
+            await savePitch(campaignId, pitchData);
             toast.success("Pitch data saved successfully");
             break;
           case "outreach":
@@ -103,10 +264,13 @@ export default function NewCampaignPage() {
             toast.success("Workflow data saved successfully");
             break;
           case "settings":
-            console.log(JSON.stringify(data, null, 2))
+            const settingsData = data as SettingsFormData;
             await saveSettings(campaignId, {
-              ...data,
-              name: data.name || "New Campaign"
+              emailSettings: settingsData.emailSettings,
+              campaignSettings: {
+                ...settingsData.campaignSettings,
+                name: settingsData.campaignSettings.name || "New Campaign"
+              }
             });
             toast.success("Campaign settings saved successfully");
             break;
@@ -128,8 +292,6 @@ export default function NewCampaignPage() {
       router.push(`/campaigns/${campaignId}`);
     }
   };
-
-  // Map step index to step ID for form handling
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -210,7 +372,7 @@ export default function NewCampaignPage() {
               <TargetingForm 
                 onSubmit={(data) => handleStepSubmit("targeting", data)} 
                 isSubmitting={isSubmitting}
-                initialData={formData.targeting ?? {contacts : []}}
+                initialData={formData.targeting || defaultTargetingData}
                 campaignId={campaignId || 0}
               />
             )}
@@ -218,28 +380,28 @@ export default function NewCampaignPage() {
               <PitchForm 
                 onSubmit={(data) => handleStepSubmit("pitch", data)}
                 isSubmitting={isSubmitting}
-                initialData={formData.pitch}
+                initialData={formData.pitch || defaultPitchData}
               />
             )}
             {activeStep === 2 && (
               <OutreachForm 
                 onSubmit={(data) => handleStepSubmit("outreach", data)}
                 isSubmitting={isSubmitting}
-                initialData={formData.outreach}
+                initialData={formData.outreach || defaultOutreachData}
               />
             )}
             {activeStep === 3 && (
               <WorkflowForm 
                 onSubmit={(data) => handleStepSubmit("workflow", data)}
                 isSubmitting={isSubmitting}
-                initialData={formData.workflow}
+                initialData={formData.workflow || defaultWorkflowData}
               />
             )}
             {activeStep === 4 && (
               <SettingsForm 
                 onSubmit={(data) => handleStepSubmit("settings", data)}
                 isSubmitting={isSubmitting}
-                initialData={formData.settings}
+                initialData={formData.settings || defaultSettingsData}
               />
             )}
           </div>

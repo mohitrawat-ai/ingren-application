@@ -217,3 +217,7 @@ export type Campaign = typeof campaigns.$inferSelect;
 export type Url = typeof urls.$inferSelect;
 export type ContactType = typeof audienceContacts.$inferSelect;
 export type AudienceType = typeof campaignAudiences.$inferSelect;
+export type SettingType = typeof campaignSettings.$inferSelect;
+export type SendingDayType = typeof campaignSendingDays.$inferSelect;
+export type TargetingType = typeof campaignTargeting.$inferSelect;
+export type PitchType = typeof campaignPitch.$inferSelect;

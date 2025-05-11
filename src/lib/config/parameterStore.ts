@@ -8,7 +8,7 @@ class ParameterStoreConfig {
 
   private constructor() {
     this.ssmClient = new SSMClient({ 
-      region: process.env.AWS_REGION || 'eu-west-1'
+      region: process.env.AWS_REGION || 'us-east-1'
     });
   }
 

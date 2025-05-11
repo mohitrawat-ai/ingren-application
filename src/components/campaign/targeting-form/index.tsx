@@ -33,7 +33,9 @@ import {
 } from "./types";
 import { convertCSVToContacts } from "@/lib/actions/audience";
 
-// Form schema
+// src/components/campaign/targeting-form/index.tsx (Form schema section)
+
+// Update the form schema to ensure proper validation of contacts
 const targetingFormSchema = z.object({
   organizations: z.array(
     z.object({
@@ -41,6 +43,8 @@ const targetingFormSchema = z.object({
       name: z.string(),
       industry: z.string().optional(),
       employeeCount: z.string().optional(),
+      website_url: z.string().optional(),
+      linkedin_url: z.string().optional(),
     })
   ).optional(),
   jobTitles: z.array(z.string()).optional(),
@@ -52,12 +56,26 @@ const targetingFormSchema = z.object({
       organization: z.object({
         name: z.string(),
       }),
+      // Make all these fields optional
       city: z.string().optional(),
       state: z.string().optional(),
       country: z.string().optional(),
       email: z.string().optional(),
+      first_name: z.string().optional(),
+      last_name: z.string().optional(),
+      department: z.string().optional(),
+      tenure_months: z.number().optional(),
+      notable_achievement: z.string().optional(),
+      company_industry: z.string().optional(),
+      company_employee_count: z.string().optional(),
+      company_annual_revenue: z.string().optional(),
+      company_funding_stage: z.string().optional(),
+      company_growth_signals: z.string().optional(),
+      company_recent_news: z.string().optional(),
+      company_technography: z.string().optional(),
+      company_description: z.string().optional(),
     })
-  ),
+  ).min(1, "At least one contact is required"),
 });
 
 interface TargetingFormProps {
@@ -98,23 +116,28 @@ export function TargetingForm({
   useEffect(() => {
     const searchForContacts = async () => {
       const organizations = form.getValues("organizations") || [];
-      const jobTitles = form.getValues("jobTitles") || [];
-      
-      // If we have CSV data, use that instead of searching
-      if (csvData.length > 0) {
-        try {
-          const formattedContacts = await convertCSVToContacts(csvData);
-          setContactSearchResults(formattedContacts);
-          setTotalContacts(formattedContacts.length);
-          setTotalPages(1);
-          form.setValue("contacts", formattedContacts);
-          return;
-        } catch (error) {
-          console.error("Error converting CSV data:", error);
-          toast.error("Failed to process CSV data");
-          return;
-        }
+    const jobTitles = form.getValues("jobTitles") || [];
+    
+    // If we have CSV data, use that instead of searching
+    if (csvData.length > 0) {
+      try {
+        const formattedContacts = await convertCSVToContacts(csvData);
+        setContactSearchResults(formattedContacts);
+        setTotalContacts(formattedContacts.length);
+        setTotalPages(1);
+        
+        // IMPORTANT: Set the contacts in the form state
+        form.setValue("contacts", formattedContacts);
+        
+        // Ensure the button is enabled by validating the form
+        await form.trigger("contacts");
+        return;
+      } catch (error) {
+        console.error("Error converting CSV data:", error);
+        toast.error("Failed to process CSV data");
+        return;
       }
+    }
       
       if (organizations.length === 0 && jobTitles.length === 0) {
         setContactSearchResults([]);
@@ -224,7 +247,17 @@ export function TargetingForm({
   };
 
   // Handle form submission
-  const handleFormSubmit = (data: TargetingFormValues) => {
+  const handleFormSubmit = (data: Partial<TargetingFormValues>) => {
+    // Include total results and CSV file name for audience creation
+   // Log data to check
+    console.log("Form submitted with data:", data);
+    
+    // Make sure we have contacts
+    if (!data.contacts || data.contacts.length === 0) {
+      toast.error("Please select contacts before proceeding");
+      return;
+    }
+    
     // Include total results and CSV file name for audience creation
     onSubmit({
       ...data,
@@ -302,10 +335,22 @@ export function TargetingForm({
             </FormItem>
           )}
         />
+
+        {/* Show validation error message visibly */}
+        {form.formState.errors.contacts && (
+          <p className="text-sm text-red-600 mt-2">
+            {form.formState.errors.contacts.message?.toString()}
+          </p>
+        )}
         
         <div className="flex justify-end">
           <Button 
             type="submit" 
+            onClick={() => {
+              console.log("submit button clicked");
+              console.log("form values", form.getValues());
+              console.log("form errors", form.formState.errors);
+            }}
             disabled={isSubmitting || contactSearchResults.length === 0}
           >
             {isSubmitting ? (

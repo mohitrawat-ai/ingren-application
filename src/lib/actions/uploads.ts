@@ -39,6 +39,8 @@ export async function saveCSVFile(fileBuffer: ArrayBuffer): Promise<{ filePath: 
   }
 }
 
+// src/lib/actions/uploads.ts (parseCSVFile function)
+
 export async function parseCSVFile(filePath: string): Promise<CSVContact[]> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -56,10 +58,19 @@ export async function parseCSVFile(filePath: string): Promise<CSVContact[]> {
         complete: (results) => {
           const data = results.data as CSVContact[];
           
-          // Validate required fields
-          const validData = data.filter(row => 
-            row.name && row.title && row.company
-          );
+          // Validate that we have at least minimal info to identify contacts
+          const validData = data.filter(row => {
+            // Check if we have either name or first_name & last_name
+            const hasName = row.name || (row.first_name && row.last_name);
+            
+            // Check if we have either title or job_title
+            const hasTitle = row.title || row.job_title;
+            
+            // Check if we have either company or company_name
+            const hasCompany = row.company || row.company_name;
+            
+            return hasName && hasTitle && hasCompany;
+          });
           
           resolve(validData);
         },

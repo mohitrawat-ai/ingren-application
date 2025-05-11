@@ -1,12 +1,18 @@
 // src/components/campaign/targeting-form/contact-list.tsx
 "use client";
 
-import { UserCircle } from "lucide-react";
+import { UserCircle, Building, Award, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormLabel } from "@/components/ui/form";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Contact } from "./types";
 
 interface ContactListProps {
@@ -66,14 +72,73 @@ export function ContactList({
                 >
                   <Avatar>
                     <AvatarFallback>
-                      {contact.name.slice(0, 2).toUpperCase()}
+                      {contact.first_name && contact.last_name ? 
+                        `${contact.first_name[0]}${contact.last_name[0]}` : 
+                        contact.name.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <div className="font-medium">{contact.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {contact.title} at {contact.organization.name}
+                    <div className="font-medium">
+                      {contact.first_name && contact.last_name ? 
+                        `${contact.first_name} ${contact.last_name}` : 
+                        contact.name}
                     </div>
+                    <div className="text-sm text-muted-foreground">
+                      {contact.title} {contact.department && `• ${contact.department}`}
+                    </div>
+                    
+                    {/* Company info with tooltips for additional data */}
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger className="flex items-center">
+                            <Building className="h-3 w-3 mr-1" />
+                            <span>{contact.organization.name}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1 max-w-xs">
+                              {contact.company_industry && (
+                                <p className="text-xs"><span className="font-medium">Industry:</span> {contact.company_industry}</p>
+                              )}
+                              {contact.company_employee_count && (
+                                <p className="text-xs"><span className="font-medium">Size:</span> {contact.company_employee_count}</p>
+                              )}
+                              {contact.company_description && (
+                                <p className="text-xs"><span className="font-medium">Description:</span> {contact.company_description}</p>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      
+                      {/* Only show these icons if we have the corresponding data */}
+                      {contact.notable_achievement && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="ml-2">
+                              <Award className="h-3 w-3" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs max-w-xs"><span className="font-medium">Achievement:</span> {contact.notable_achievement}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      
+                      {contact.tenure_months && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="ml-2">
+                              <Clock className="h-3 w-3" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs"><span className="font-medium">Tenure:</span> {contact.tenure_months} months</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                    
                     {contact.email && (
                       <div className="text-xs text-muted-foreground">
                         {contact.email}

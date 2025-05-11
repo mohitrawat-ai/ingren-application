@@ -220,7 +220,7 @@ export default function NewCampaignPage() {
               <TargetingForm 
                 onSubmit={(data) => handleStepSubmit("targeting", data)} 
                 isSubmitting={isSubmitting}
-                initialData={formData.targeting}
+                initialData={formData.targeting ?? {contacts : []}}
                 campaignId={campaignId || 0}
               />
             )}

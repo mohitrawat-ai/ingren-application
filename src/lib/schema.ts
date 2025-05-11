@@ -1,6 +1,7 @@
 import { pgTable, text, integer, serial, timestamp, boolean, primaryKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import { number } from "zod";
 
 // Auth Tables
 export const users = pgTable("user", {
@@ -121,9 +122,13 @@ export const targetJobTitles = pgTable('target_job_titles', {
 
 
 // Audience Contacts
+// Extract from src/lib/schema.ts (audienceContacts table)
+
 export const audienceContacts = pgTable('audience_contacts', {
   id: serial('id').primaryKey(),
   audienceId: integer('audience_id').references(() => campaignAudiences.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Basic contact info (existing fields)
   name: text('name').notNull(),
   title: text('title').notNull(),
   organizationName: text('organization_name').notNull(),
@@ -132,6 +137,23 @@ export const audienceContacts = pgTable('audience_contacts', {
   country: text('country'),
   email: text('email'),
   apolloId: text('apollo_id'),
+  
+  // Additional prospect fields
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  department: text('department'),
+  tenureMonths: integer('tenure_months'),
+  notableAchievement: text('notable_achievement'),
+  
+  // Additional company fields
+  companyIndustry: text('company_industry'),
+  companyEmployeeCount: text('company_employee_count'),
+  companyAnnualRevenue: text('company_annual_revenue'),
+  companyFundingStage: text('company_funding_stage'),
+  companyGrowthSignals: text('company_growth_signals'),
+  companyRecentNews: text('company_recent_news'),
+  companyTechnography: text('company_technography'),
+  companyDescription: text('company_description'),
 });
 
 // Add csvFileName to campaignAudiences table

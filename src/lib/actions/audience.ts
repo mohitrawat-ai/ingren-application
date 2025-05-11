@@ -21,6 +21,7 @@ interface CreateAudienceParams {
   totalResults: number;
   csvFileName?: string;
 }
+// Extract from src/lib/actions/audience.ts (createAudience function)
 
 export async function createAudience({
   campaignId,
@@ -61,7 +62,7 @@ export async function createAudience({
         })
         .returning();
 
-      // Insert audience contacts
+      // Insert audience contacts with all fields
       if (contacts.length > 0) {
         await tx.insert(audienceContacts).values(
           contacts.map(contact => ({
@@ -74,6 +75,23 @@ export async function createAudience({
             country: contact.country || null,
             email: contact.email || null,
             apolloId: contact.id?.startsWith('csv-') ? null : contact.id,
+            
+            // Additional prospect fields
+            firstName: contact.first_name || null,
+            lastName: contact.last_name || null,
+            department: contact.department || null,
+            tenureMonths: contact.tenure_months || null,
+            notableAchievement: contact.notable_achievement || null,
+            
+            // Additional company fields
+            companyIndustry: contact.company_industry || null,
+            companyEmployeeCount: contact.company_employee_count || null,
+            companyAnnualRevenue: contact.company_annual_revenue || null,
+            companyFundingStage: contact.company_funding_stage || null,
+            companyGrowthSignals: contact.company_growth_signals || null,
+            companyRecentNews: contact.company_recent_news || null,
+            companyTechnography: contact.company_technography || null,
+            companyDescription: contact.company_description || null,
           }))
         );
       }
@@ -147,18 +165,61 @@ export async function getAudience(audienceId: number) {
     throw new Error("Failed to fetch audience");
   }
 }
+// src/lib/actions/audience.ts (convertCSVToContacts function)
+
+// Updated convertCSVToContacts function with debugging
 
 export async function convertCSVToContacts(csvData: CSVContact[]): Promise<Contact[]> {
-  return csvData.map((contact, index) => ({
-    id: `csv-${index}`,
-    name: contact.name || "Unknown",
-    title: contact.title || "Unknown",
-    organization: {
-      name: contact.company || "Unknown",
-    },
-    city: contact.city,
-    state: contact.state,
-    country: contact.country,
-    email: contact.email,
-  }));
+
+  if (!csvData || csvData.length === 0) {
+    console.error("No CSV data to convert");
+    return [];
+  }
+
+  return csvData.map((contact, index) => {
+    // Handle the case where either name is provided directly or constructed from first/last name
+    const fullName = contact.name || 
+      (contact.first_name && contact.last_name ? 
+        `${contact.first_name} ${contact.last_name}` : 
+        contact.first_name || contact.last_name || "Unknown");
+    
+    // Use either specific job_title field or generic title
+    const jobTitle = contact.job_title || contact.title || "Unknown";
+    
+    // Use either specific company_name field or generic company
+    const companyName = contact.company_name || contact.company || "Unknown";
+
+    const result: Contact = {
+      id: `csv-${index}`,
+      name: fullName,
+      title: jobTitle,
+      organization: {
+        name: companyName,
+      },
+      // Basic contact fields
+      city: contact.city,
+      state: contact.state,
+      country: contact.country,
+      email: contact.email,
+      
+      // Prospect fields
+      first_name: contact.first_name,
+      last_name: contact.last_name,
+      department: contact.department,
+      tenure_months: contact.tenure_months,
+      notable_achievement: contact.notable_achievement,
+      
+      // Company fields
+      company_industry: contact.industry,
+      company_employee_count: contact.employee_count,
+      company_annual_revenue: contact.annual_revenue,
+      company_funding_stage: contact.funding_stage,
+      company_growth_signals: contact.growth_signals,
+      company_recent_news: contact.recent_news,
+      company_technography: contact.technography,
+      company_description: contact.description,
+    };
+
+    return result;
+  });
 }

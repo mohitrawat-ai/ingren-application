@@ -28,8 +28,9 @@ class ApolloPersonService {
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
-        } catch (e) {
+        } catch (e: unknown) {
           // Ignore JSON parsing errors in error response
+          console.log(e)
         }
         throw new Error(errorMessage);
       }
@@ -46,7 +47,7 @@ class ApolloPersonService {
           current_page: 1
         }
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error searching contacts:', error);
       throw error;
     }
@@ -75,7 +76,7 @@ class ApolloPersonService {
       
       const data = await response.json();
       return data.contact;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error getting contact details:', error);
       throw error;
     }

@@ -10,6 +10,10 @@ const fontSans = FontSans({
   variable: "--font-sans" 
 });
 
+export const metadata = {
+  title: "Ingren - Sales Campaign Platform",
+  description: "A modern sales campaign management platform",
+};
 
 export default function RootLayout({
   children,

@@ -86,11 +86,6 @@ export function SettingsForm({
   initialData,
 }: SettingsFormProps) {
   // Get the current time in HH:MM:SS format
-  const getCurrentTime = (hours: number, minutes: number) => {
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    return date.toISOString();
-  };
 
   // Default initial data
   const defaultInitialData: SettingsFormValues = {
@@ -160,14 +155,6 @@ export function SettingsForm({
     { value: "sunday", label: "Sunday" },
   ];
 
-  const formatTimeString = (timeString: string) => {
-    try {
-      const date = new Date(timeString);
-      return format(date, "h:mm a");
-    } catch (error) {
-      return "Invalid time";
-    }
-  };
 
   return (
     <Form {...form}>

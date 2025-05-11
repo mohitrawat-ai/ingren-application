@@ -5,7 +5,6 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Volume2, MessageSquare, Plus, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {

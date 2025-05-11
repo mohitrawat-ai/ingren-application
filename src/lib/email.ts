@@ -26,14 +26,14 @@ export async function sendEmail(data: {
     subject: data.subject,
     text: data.text,
     html: data.html,
-    category: ['campaign-email'],
+    category: 'campaign-email',
     customArgs: {
       messageId,
     },
   };
 
   try {
-    await sgMail.send(mailData as any);
+    await sgMail.send(mailData);
     return { success: true, messageId };
   } catch (error) {
     console.error('Error sending email:', error);
@@ -64,7 +64,7 @@ export async function sendBatchEmails(recipients: Array<{
       subject: recipient.subject,
       text: recipient.text,
       html: recipient.html,
-      category: ['bulk-personalized-email'],
+      category: 'bulk-personalized-email',
       customArgs: {
         messageId,
       },
@@ -72,7 +72,7 @@ export async function sendBatchEmails(recipients: Array<{
   });
 
   try {
-    await sgMail.send(messages as any);
+    await sgMail.send(messages);
     return { success: true };
   } catch (error) {
     console.error('Error sending bulk emails:', error);

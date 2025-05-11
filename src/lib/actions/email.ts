@@ -3,7 +3,6 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { faker } from "@faker-js/faker";
-import { sendEmail } from "@/lib/email";
 
 // Interface for personalized email
 interface PersonalizedEmail {
@@ -70,27 +69,24 @@ export async function getEmailThreads() {
 }
 
 // Delete an email
-export async function deleteEmail(messageId: string) {
+export async function deleteEmail(messageId?: string) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
-
+  console.log(messageId)
   // In a real application, you would delete the email from your database
   // Here we'll just return a success message
   return { success: true };
 }
 
 // Send a reply
-export async function sendReply(data: {
-  parentMessageId: string;
-  content: string;
-  subject: string;
-}) {
+export async function sendReply(p0?: { parentMessageId: string; content: string; subject: string; }) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
+  console.log(p0)
 
   // In a real application, you would send the email and store it in your database
   // Here we'll just return a success message
@@ -136,16 +132,12 @@ export async function getEmailPreviews(campaignId: number): Promise<Personalized
 }
 
 // Send a test email
-export async function sendTestEmail(data: {
-  to: string;
-  subject: string;
-  content: string;
-  campaignId: number;
-}) {
+export async function sendTestEmail(p0?: { to: string; subject: string; content: string; campaignId: number; }) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
+  console.log(p0)
   
   // In a real application, you would send this through your email provider
   // Here we're simulating success

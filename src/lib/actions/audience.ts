@@ -41,7 +41,7 @@ export async function createAudience({
   const campaign = await db.query.campaigns.findFirst({
     where: (campaigns, { eq, and }) => and(
       eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
+      eq(campaigns.userId, session.user?.id || "-1")
     ),
   });
 
@@ -151,7 +151,7 @@ export async function getAudience(audienceId: number) {
     const campaign = await db.query.campaigns.findFirst({
       where: (campaigns, { eq, and }) => and(
         eq(campaigns.id, audience.campaignId),
-        eq(campaigns.userId, session.user.id)
+        eq(campaigns.userId, session.user?.id || "-1")
       ),
     });
 

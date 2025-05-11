@@ -1,7 +1,6 @@
 import { pgTable, text, integer, serial, timestamp, boolean, primaryKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { number } from "zod";
 
 // Auth Tables
 export const users = pgTable("user", {
@@ -216,3 +215,5 @@ export const urls = pgTable('urls', {
 export type User = typeof users.$inferSelect;
 export type Campaign = typeof campaigns.$inferSelect;
 export type Url = typeof urls.$inferSelect;
+export type ContactType = typeof audienceContacts.$inferSelect;
+export type AudienceType = typeof campaignAudiences.$inferSelect;

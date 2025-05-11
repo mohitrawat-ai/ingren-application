@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Icons } from "@/components/icons"
+import { Icons } from "@/components/icons";
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
@@ -41,24 +41,29 @@ export default function LoginPage() {
       await signIn("google", { callbackUrl: "/dashboard" });
     } catch (error) {
       toast.error("Authentication failed. Please try again.");
+      console.log(error)
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen grid md:grid-cols-2">
-      <div className="hidden md:flex bg-muted items-center justify-center p-8">
-        <div className="max-w-md">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
+      {/* Left side image - takes up the entire left half */}
+      <div className="hidden md:block md:bg-muted relative overflow-hidden">
+        <div className="absolute inset-0">
           <Image
-            src="/images/login-illustration.svg" 
+            src="/login.png" 
             alt="Login illustration"
-            width={500}
-            height={500}
+            fill
+            style={{ objectFit: 'cover' }}
             className="dark:invert"
+            priority
           />
         </div>
       </div>
+      
+      {/* Right side login form */}
       <div className="flex items-center justify-center p-8">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1 text-center">

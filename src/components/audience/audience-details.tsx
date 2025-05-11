@@ -18,12 +18,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { getAudience } from "@/lib/actions/audience";
 
+
+import {ContactType, AudienceType} from '@/lib/schema'
+type CampaingnAudienceType = AudienceType & { contacts: ContactType[] };
+
+
 interface AudienceDetailsProps {
   audienceId: number;
 }
 
 export function AudienceDetails({ audienceId }: AudienceDetailsProps) {
-  const [audience, setAudience] = useState<any>(null);
+  const [audience, setAudience] = useState<CampaingnAudienceType | null>(null);
   const [loading, setLoading] = useState(true);
   const [contactsPage, setContactsPage] = useState(1);
   const contactsPerPage = 10;
@@ -162,7 +167,7 @@ export function AudienceDetails({ audienceId }: AudienceDetailsProps) {
                         <p className="mt-2 text-muted-foreground">No contacts available</p>
                       </div>
                     ) : (
-                      paginatedContacts.map((contact: any) => (
+                      paginatedContacts.map((contact: ContactType) => (
                         <div 
                           key={contact.id} 
                           className="p-3 border rounded-md hover:bg-accent/50"

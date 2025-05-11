@@ -3,8 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { campaigns, campaignAudiences } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { eq, InferSelectModel } from "drizzle-orm";
 import { faker } from '@faker-js/faker';
+import * as schema from '@/lib/schema';
+
+type CampaignSelect = InferSelectModel<typeof schema.campaigns>;
 
 export async function GET(
   request: NextRequest,
@@ -67,7 +70,15 @@ export async function GET(
 }
 
 // Generate a sample email based on campaign and contact data
-function generateEmailPreview(campaign: any, contact: any) {
+function generateEmailPreview(campaign: CampaignSelect, contact: {
+  name: string | null;
+  organizationName: string | null;
+  title: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  email: string | null;
+}) {
   // Generate random send date in the next 2 days
   const sendDate = new Date();
   sendDate.setTime(sendDate.getTime() + (Math.random() * 2 * 24 * 60 * 60 * 1000));
@@ -76,14 +87,14 @@ function generateEmailPreview(campaign: any, contact: any) {
   const sender = {
     name: "John Smith",
     email: "john@ingren.ai",
-    title: "Sales Development Representative"
+    title: "Sales Development Representative",
   };
 
   // Generate subject line with personalization
   const subject = `${contact.name}, would you be interested in improving ${contact.organizationName}'s outreach?`;
 
   // Generate email body with personalization
-  const greeting = `Hi ${contact.name.split(' ')[0]},`;
+  const greeting = `Hi ${contact.name?.split(' ')[0]},`;
   
   // Use different intros based on contact index for variety
   const intro = `I noticed that ${contact.organizationName} has been making some impressive moves in the industry recently.`;
@@ -121,7 +132,7 @@ ${signature}`;
     id: faker.string.uuid(),
     recipient: {
       name: contact.name,
-      email: contact.email || `${contact.name.toLowerCase().replace(/\s+/g, '.')}@${contact.organizationName.toLowerCase().replace(/\s+/g, '')}.com`,
+      email: contact.email || `${contact.name?.toLowerCase().replace(/\s+/g, '.')}@${contact.organizationName?.toLowerCase().replace(/\s+/g, '')}.com`,
       title: contact.title,
       company: contact.organizationName
     },
@@ -130,7 +141,7 @@ ${signature}`;
     body: emailBody,
     scheduledDate: sendDate.toISOString(),
     personalization: {
-      recipientName: contact.name.split(' ')[0],
+      recipientName: contact.name?.split(' ')[0],
       companyName: contact.organizationName,
       recipientTitle: contact.title,
       recipientLocation: [contact.city, contact.state, contact.country].filter(Boolean).join(', ')

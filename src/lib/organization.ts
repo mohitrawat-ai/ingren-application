@@ -60,6 +60,7 @@ class ApolloOrganizationService {
           errorMessage = errorData.error || errorMessage;
         } catch (e) {
           // Ignore JSON parsing errors
+          console.log(e)
         }
         throw new Error(errorMessage);
       }
@@ -72,8 +73,9 @@ class ApolloOrganizationService {
       }
       
       onSuccess(data.organizations || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error searching organizations:', error);
+      if(error instanceof Error)
       onError(error.message || 'Failed to search organizations');
     }
   }
@@ -101,7 +103,7 @@ class ApolloOrganizationService {
       
       const data = await response.json();
       return data.organization;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error getting organization details:', error);
       throw error;
     }

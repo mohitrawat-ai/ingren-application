@@ -122,9 +122,9 @@ export default function CampaignsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="success">Active</Badge>;
+        return <Badge variant="default">Active</Badge>;
       case "paused":
-        return <Badge variant="warning">Paused</Badge>;
+        return <Badge variant="outline">Paused</Badge>;
       case "draft":
         return <Badge variant="outline">Draft</Badge>;
       case "completed":
@@ -246,7 +246,7 @@ export default function CampaignsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the campaign "{campaignToDelete?.name}". 
+              This will permanently delete the campaign &quot;{campaignToDelete?.name}&quot;. 
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

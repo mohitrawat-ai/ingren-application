@@ -21,6 +21,7 @@ import {
   Send,
   File,
   Paperclip,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -152,9 +153,6 @@ export default function MailboxPage() {
     setSelectedEmail(thread[0]);
   };
 
-  const handleSelectEmail = (email: Email) => {
-    setSelectedEmail(email);
-  };
 
   const handleOpenReplyDialog = (email: Email) => {
     setSelectedEmail(email);

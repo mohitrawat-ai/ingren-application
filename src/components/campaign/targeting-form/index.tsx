@@ -79,7 +79,7 @@ const targetingFormSchema = z.object({
 });
 
 interface TargetingFormProps {
-  onSubmit: (data: any) => void;
+  onSubmit: (data: unknown) => void;
   isSubmitting?: boolean;
   initialData?: TargetingFormValues;
   campaignId: number;
@@ -148,7 +148,12 @@ export function TargetingForm({
       
       setLoadingContacts(true);
       try {
-        const params: any = {
+        const params: {
+          page: number;
+          per_page: number;
+          organization_ids?: string[];
+          title?: string[];
+        } = {
           page: currentPage,
           per_page: 10,
         };

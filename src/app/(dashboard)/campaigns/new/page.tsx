@@ -130,16 +130,6 @@ export default function NewCampaignPage() {
   };
 
   // Map step index to step ID for form handling
-  const getStepId = (index: number): string => {
-    switch (index) {
-      case 0: return "targeting";
-      case 1: return "pitch";
-      case 2: return "outreach";
-      case 3: return "workflow"; 
-      case 4: return "settings";
-      default: return "targeting";
-    }
-  };
 
   return (
     <div className="max-w-4xl mx-auto">

@@ -116,8 +116,8 @@ export function SettingsForm({
         sunday: false,
       },
       sendingTime: {
-        startTime: getCurrentTime(9, 0),
-        endTime: getCurrentTime(17, 0),
+        startTime: "09:00", // String format instead of ISO string
+        endTime: "17:00",   // String format instead of ISO string
       },
     },
   };
@@ -380,18 +380,19 @@ export function SettingsForm({
                           <div>
                             <Select
                               onValueChange={(time) => {
-                                // Convert time string (e.g. "09:00") to ISO string
-                                const [hours, minutes] = time.split(':').map(Number);
-                                const date = new Date();
-                                date.setHours(hours, minutes, 0, 0);
-                                field.onChange(date.toISOString());
+                                // Store the time as a string directly, without conversion to ISO string
+                                field.onChange(time);
                               }}
-                              value={format(new Date(field.value), 'HH:mm')}
+                              // Display the selected value in the 24-hour format or default to "09:00"
+                              value={field.value || "09:00"}
                             >
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue>
-                                    {formatTimeString(field.value)}
+                                  {field.value ? format(set(new Date(), { 
+                                    hours: parseInt(field.value.split(':')[0]), 
+                                    minutes: parseInt(field.value.split(':')[1] || '0') 
+                                  }), 'h:mm a') : 'Select time'}
                                   </SelectValue>
                                 </SelectTrigger>
                               </FormControl>
@@ -428,20 +429,21 @@ export function SettingsForm({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div>
-                            <Select
+                          <Select
                               onValueChange={(time) => {
-                                // Convert time string (e.g. "17:00") to ISO string
-                                const [hours, minutes] = time.split(':').map(Number);
-                                const date = new Date();
-                                date.setHours(hours, minutes, 0, 0);
-                                field.onChange(date.toISOString());
+                                // Store the time as a string directly, without conversion to ISO string
+                                field.onChange(time);
                               }}
-                              value={format(new Date(field.value), 'HH:mm')}
+                              // Display the selected value in the 24-hour format or default to "09:00"
+                              value={field.value || "17:00"}
                             >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue>
-                                    {formatTimeString(field.value)}
+                                <SelectValue>
+                                  {field.value ? format(set(new Date(), { 
+                                    hours: parseInt(field.value.split(':')[0]), 
+                                    minutes: parseInt(field.value.split(':')[1] || '0') 
+                                  }), 'h:mm a') : 'Select time'}
                                   </SelectValue>
                                 </SelectTrigger>
                               </FormControl>

@@ -16,6 +16,8 @@ import {
   audienceContacts
 } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
+import { fromZonedTime } from 'date-fns-tz';
+import { parse } from 'date-fns';
 
 // Create a new campaign
 export async function createCampaign(name: string) {
@@ -373,6 +375,36 @@ export async function saveSettings(
       .set({ name: data.campaignSettings.name })
       .where(eq(campaigns.id, campaignId));
 
+
+    /**
+     * Converts local time in a specific timezone to UTC ISO string.
+     *
+     * @param {string} time - Time in 24-hour format (e.g., "09:00")
+     * @param {string} date - Date in "YYYY-MM-DD" format
+     * @param {string} timeZone - IANA timezone string (e.g., "Asia/Calcutta")
+     * @returns {string} UTC ISO string (e.g., "2025-05-09T03:30:00.000Z")
+     */
+    function localTimeToUTCISOString(time: string, timeZone: string) {
+      const date = new Date().toISOString().split("T")[0];
+      const dateTimeString = `${date} ${time}`; // e.g., "2025-05-09 09:00"
+      const formatString = "yyyy-MM-dd HH:mm";
+      const localDate = parse(dateTimeString, formatString, new Date());
+    
+      const utcDate = fromZonedTime(localDate, timeZone);
+      
+      // Extract HH:mm:ss from the UTC Date
+      const hours = String(utcDate.getUTCHours()).padStart(2, '0');
+      const minutes = String(utcDate.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(utcDate.getUTCSeconds()).padStart(2, '0');
+
+      return `${hours}:${minutes}:${seconds}`;
+    }
+
+    const timeZone = data.campaignSettings.timezone;
+    const sendingStartTime = localTimeToUTCISOString(data.campaignSettings.sendingTime.startTime, timeZone);
+    const sendingEndTime = localTimeToUTCISOString(data.campaignSettings.sendingTime.endTime, timeZone);
+    
+
     // Update campaign settings
     await tx
       .insert(campaignSettings)
@@ -381,13 +413,13 @@ export async function saveSettings(
         fromName: data.emailSettings.fromName,
         fromEmail: data.emailSettings.fromEmail,
         emailService: data.emailSettings.emailService,
-        timezone: data.campaignSettings.timezone,
+        timezone: timeZone,
         trackOpens: data.campaignSettings.trackOpens,
         trackClicks: data.campaignSettings.trackClicks,
         dailySendLimit: data.campaignSettings.dailySendLimit,
         unsubscribeLink: data.campaignSettings.unsubscribeLink,
-        sendingStartTime: data.campaignSettings.sendingTime.startTime,
-        sendingEndTime: data.campaignSettings.sendingTime.endTime,
+        sendingStartTime: sendingStartTime,
+        sendingEndTime: sendingEndTime,
       })
       .onConflictDoUpdate({
         target: [campaignSettings.campaignId],
@@ -395,13 +427,13 @@ export async function saveSettings(
           fromName: data.emailSettings.fromName,
           fromEmail: data.emailSettings.fromEmail,
           emailService: data.emailSettings.emailService,
-          timezone: data.campaignSettings.timezone,
+          timezone: timeZone,
           trackOpens: data.campaignSettings.trackOpens,
           trackClicks: data.campaignSettings.trackClicks,
           dailySendLimit: data.campaignSettings.dailySendLimit,
           unsubscribeLink: data.campaignSettings.unsubscribeLink,
-          sendingStartTime: data.campaignSettings.sendingTime.startTime,
-          sendingEndTime: data.campaignSettings.sendingTime.endTime,
+          sendingStartTime: sendingStartTime,
+          sendingEndTime: sendingEndTime,
         },
       });
 

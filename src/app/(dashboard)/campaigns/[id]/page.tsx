@@ -39,10 +39,10 @@ export default async function CampaignDetailsPage({
       <div className="space-y-6">
          <CampaignHeader 
           campaignId={campaignId} 
-          campaignName={campaign.name}
-          campaignStatus={campaign.status}
+          campaignName={campaign?.name || ""}
+          campaignStatus={campaign?.status || ""}
         />
-        <h1 className="text-3xl font-bold">{campaign.name}</h1>
+        <h1 className="text-3xl font-bold">{campaign?.name}</h1>
         
         <div className="grid gap-6">
           <div>

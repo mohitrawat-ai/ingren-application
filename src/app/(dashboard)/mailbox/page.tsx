@@ -60,7 +60,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { getEmailThreads, deleteEmail, sendReply } from "@/lib/actions/email";
 
 interface Email {
-  id: string;
+  id?: string;
   message_id: string;
   from: {
     email: string;
@@ -81,9 +81,12 @@ interface Email {
 }
 
 type EmailThread = Email[];
+type EmailThreadWithExtras = EmailThread & {
+  thread_id?: string;
+};
 
 export default function MailboxPage() {
-  const [threads, setThreads] = useState<EmailThread[]>([]);
+  const [threads, setThreads] = useState<EmailThreadWithExtras[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<EmailThread | null>(null);

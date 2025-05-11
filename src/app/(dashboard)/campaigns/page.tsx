@@ -50,11 +50,9 @@ import {
 
 import { getCampaigns, updateCampaignStatus, deleteCampaign } from "@/lib/actions/campaign";
 
-type Campaign = {
-  id: number;
-  name: string;
-  status: "draft" | "active" | "paused" | "completed";
-  createdAt: string;
+import { Campaign } from "@/lib/schema";
+
+type CampaignExtra = Campaign & {
   statistics: {
     sentEmails: number;
     openRate: string;
@@ -62,8 +60,9 @@ type Campaign = {
   }
 }
 
+
 export default function CampaignsPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignExtra[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);

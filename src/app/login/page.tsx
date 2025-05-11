@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
+import { Suspense } from 'react'
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,13 @@ import { Label } from "@/components/ui/label";
 import { Icons } from "@/components/icons";
 
 export default function LoginPage() {
+  return  ( <Suspense>
+              <LoginPageComponent />
+            </Suspense> 
+         )
+}
+
+function LoginPageComponent() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const error = searchParams?.get("error");

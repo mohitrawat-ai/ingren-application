@@ -55,7 +55,7 @@ interface Url {
   id: string;
   url: string;
   summary: string | null;
-  createdAt: string;
+  createdAt: Date|string;
 }
 
 export default function UrlsPage() {

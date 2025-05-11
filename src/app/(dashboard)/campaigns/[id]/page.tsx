@@ -9,9 +9,7 @@ import { campaigns } from "@/lib/schema";
 
 
 interface CampaignDetailsPageProps {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }>; 
 }
 
 export default async function CampaignDetailsPage({ 

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Path } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -48,18 +49,18 @@ const settingsFormSchema = z.object({
   campaignSettings: z.object({
     name: z.string().min(1, "Campaign name is required"),
     timezone: z.string().min(1, "Timezone is required"),
-    trackOpens: z.boolean().default(true),
-    trackClicks: z.boolean().default(true),
+    trackOpens: z.boolean(),
+    trackClicks: z.boolean(),
     dailySendLimit: z.number().min(1, "Daily send limit must be at least 1"),
-    unsubscribeLink: z.boolean().default(true),
+    unsubscribeLink: z.boolean(),
     sendingDays: z.object({
-      monday: z.boolean().default(true),
-      tuesday: z.boolean().default(true),
-      wednesday: z.boolean().default(true),
-      thursday: z.boolean().default(true),
-      friday: z.boolean().default(true),
-      saturday: z.boolean().default(false),
-      sunday: z.boolean().default(false),
+      monday: z.boolean(),
+      tuesday: z.boolean(),
+      wednesday: z.boolean(),
+      thursday: z.boolean(),
+      friday: z.boolean(),
+      saturday: z.boolean(),
+      sunday: z.boolean(),
     }).refine(days => {
       return Object.values(days).some(day => day === true);
     }, {
@@ -145,15 +146,16 @@ export function SettingsForm({
   ];
 
   // Day labels for the form
-  const days = [
-    { value: "monday", label: "Monday" },
-    { value: "tuesday", label: "Tuesday" },
-    { value: "wednesday", label: "Wednesday" },
-    { value: "thursday", label: "Thursday" },
-    { value: "friday", label: "Friday" },
-    { value: "saturday", label: "Saturday" },
-    { value: "sunday", label: "Sunday" },
+  const days: { value: Path<SettingsFormValues>; label: string }[] = [
+    { value: "campaignSettings.sendingDays.monday", label: "Monday" },
+    { value: "campaignSettings.sendingDays.tuesday", label: "Tuesday" },
+    { value: "campaignSettings.sendingDays.wednesday", label: "Wednesday" },
+    { value: "campaignSettings.sendingDays.thursday", label: "Thursday" },
+    { value: "campaignSettings.sendingDays.friday", label: "Friday" },
+    { value: "campaignSettings.sendingDays.saturday", label: "Saturday" },
+    { value: "campaignSettings.sendingDays.sunday", label: "Sunday" },
   ];
+  
 
 
   return (
@@ -332,13 +334,13 @@ export function SettingsForm({
                   <FormField
                     key={day.value}
                     control={form.control}
-                    name={`campaignSettings.sendingDays.${day.value}` as any}
+                    name={day.value}
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex items-center space-x-2">
                           <FormControl>
                             <Checkbox
-                              checked={field.value}
+                              checked={field.value as boolean}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>

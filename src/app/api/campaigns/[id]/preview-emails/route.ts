@@ -11,15 +11,15 @@ type CampaignSelect = InferSelectModel<typeof schema.campaigns>;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Check authentication
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  const campaignId = parseInt(params.id);
+  const { id } = await params
+  const campaignId = parseInt(id);
   if (isNaN(campaignId)) {
     return NextResponse.json({ error: 'Invalid campaign ID' }, { status: 400 });
   }

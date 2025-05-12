@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
+import { db as dbClient } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { 
   campaigns,
@@ -18,6 +18,8 @@ import {
 import { eq, and } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
+
+const db = await dbClient();
 
 // Create a new campaign
 export async function createCampaign(name: string) {

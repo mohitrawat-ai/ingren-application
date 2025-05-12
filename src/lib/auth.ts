@@ -2,12 +2,12 @@
 import NextAuth from "next-auth";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import GoogleProvider from "next-auth/providers/google";
-import { initializeConfig } from "@/lib/config/init";
+import { ensureAppInitialized } from "@/lib/config/appInitializer";
 import { db } from "@/lib/db";
 import type { Session, User } from "next-auth";
 
 // Create an initialization promise
-const initPromise = initializeConfig();
+const initPromise = ensureAppInitialized();
 
 // Create the auth handlers with async initialization
 export const authConfig = {

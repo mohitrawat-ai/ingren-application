@@ -4,7 +4,7 @@ import postgres from 'postgres';
 import fs from 'fs';
 import path from 'path';
 import * as schema from './schema';
-import { initializeConfig } from '@/lib/config/init';
+import { ensureAppInitialized } from "@/lib/config/appInitializer";
 
 // Create a lazy-loading DB function that ensures initialization
 let dbInstance: ReturnType<typeof createDbClient> | null = null;
@@ -41,7 +41,7 @@ function createDbClient() {
 // Export an async function to get DB that ensures initialization
 export async function getDb() {
   // Ensure app initialization has completed
-  await initializeConfig();
+  await ensureAppInitialized();
   
   // Create DB instance if needed
   if (!dbInstance) {

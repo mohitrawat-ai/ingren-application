@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "@/components/session-provider";
-import { initializeConfig } from "@/lib/config/init";
+import { ensureAppInitialized } from "@/lib/config/appInitializer";
 
 const fontSans = FontSans({ 
   subsets: ["latin"], 
@@ -23,7 +23,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   // Wait for initialization to complete
-  await initializeConfig();
+  await ensureAppInitialized();
   
   return (
     <html lang="en" suppressHydrationWarning>

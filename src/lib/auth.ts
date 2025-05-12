@@ -6,9 +6,6 @@ import { ensureAppInitialized } from "@/lib/config/appInitializer";
 import { db } from "@/lib/db";
 import type { Session, User } from "next-auth";
 
-// Create an initialization promise
-const initPromise = ensureAppInitialized();
-
 // Create the auth handlers with async initialization
 export const authConfig = {
   adapter: DrizzleAdapter(db),
@@ -40,20 +37,19 @@ export const authConfig = {
   trustHost: true
 };
 
-// Create auth handlers that ensure initialization
-const initHandler = async () => {
-  // Wait for initialization to complete
-  await initPromise;
+// Create an async function for initialization
+async function createAuthHandlers() {
+  await ensureAppInitialized();
+  console.log("Auth initialization - GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID?.substring(0, 5) + "...");
   return NextAuth(authConfig);
-};
+}
 
-// Create the handlers
-const handlers = initHandler();
+// Use IIFE (Immediately Invoked Function Expression) for top-level await
+const { handlers, auth, signIn, signOut } = await (async () => {
+  const handlers = await createAuthHandlers();
+  return handlers;
+})();
 
-// Re-export the auth client
-export const { 
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut
-} = await handlers;
+// Export the results
+export { handlers, auth, signIn, signOut };
+export const { GET, POST } = handlers;

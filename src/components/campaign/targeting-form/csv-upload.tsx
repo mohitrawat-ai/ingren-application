@@ -119,7 +119,7 @@ const processCSV = async () => {
       "John", "Smith", "VP of Engineering", "Engineering", "24", "Grew the team from 5 to 50 engineers",
       // Basic company fields
       "Acme Corp", "Technology", "1000-5000", "$50M-$100M", "Series C", 
-      "Expanding to new markets", "Just raised $30M in funding", "React, Node.js, AWS", "Leading provider of widgets",
+      "Expanding to new markets", "Just raised $30M in funding", "React | Node.js | AWS", "Leading provider of widgets",
       // Legacy fields
       "", "", "", "john.smith@acmecorp.com", "San Francisco", "CA", "USA"
     ].join(",");
@@ -129,7 +129,7 @@ const processCSV = async () => {
       "Jane", "Doe", "CTO", "Technology", "36", "Led digital transformation initiative",
       // Basic company fields
       "TechNova", "Software", "100-500", "$10M-$50M", "Series B", 
-      "Hiring rapidly", "New product launch", "Python, TensorFlow, GCP", "AI-powered analytics platform",
+      "Hiring rapidly", "New product launch", "Python | Tensorflow", "AI-powered analytics platform",
       // Legacy fields
       "", "", "", "jane.doe@technova.io", "Boston", "MA", "USA"
     ].join(",");

@@ -42,7 +42,6 @@ export const authConfig = {
 // Create an async function for initialization
 async function createAuthHandlers() {
   await ensureAppInitialized();
-  console.log("Auth initialization - GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID?.substring(0, 5) + "...");
   return NextAuth(authConfig);
 }
 

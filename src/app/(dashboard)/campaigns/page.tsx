@@ -8,9 +8,7 @@ import {
   Edit, 
   Play, 
   Pause, 
-  Trash2,
-  Mail
-} from "lucide-react";
+  Trash2} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -206,12 +204,7 @@ export default function CampaignsPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
                             <Link href={`/campaigns/${campaign.id}`}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/campaigns/${campaign.id}/preview`}>
-                              <Mail className="mr-2 h-4 w-4" /> Preview Emails
+                              <Edit className="mr-2 h-4 w-4" /> View
                             </Link>
                           </DropdownMenuItem>
                           {campaign.status === "active" ? (

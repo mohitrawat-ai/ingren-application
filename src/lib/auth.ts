@@ -6,9 +6,11 @@ import { ensureAppInitialized } from "@/lib/config/appInitializer";
 import { db } from "@/lib/db";
 import type { Session, User } from "next-auth";
 
+const dbClient = await db();
+
 // Create the auth handlers with async initialization
 export const authConfig = {
-  adapter: DrizzleAdapter(db),
+  adapter: DrizzleAdapter(dbClient),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,

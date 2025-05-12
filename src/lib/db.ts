@@ -6,10 +6,19 @@ import path from 'path';
 import * as schema from './schema';
 import { ensureAppInitialized } from "@/lib/config/appInitializer";
 
-// Create a lazy-loading DB function that ensures initialization
-let dbInstance: ReturnType<typeof createDbClient> | null = null;
+// Define the DbClient type
+type DbClient = ReturnType<typeof drizzle<typeof schema>>;
 
-function createDbClient() {
+// Database instance - initialized to null
+let dbInstance: DbClient | null = null;
+
+/**
+ * Creates a database client
+ */
+async function createDbClient(): Promise<DbClient> {
+  // Wait for environment variables to be loaded
+  await ensureAppInitialized();
+  
   // Read the CA certificate
   const pemPath = path.join(process.cwd(), 'certs', 'us-east-1-bundle.pem');
   const ca = fs.readFileSync(pemPath).toString();
@@ -35,21 +44,18 @@ function createDbClient() {
   });
 
   // Initialize Drizzle with the postgres.js client
-  return drizzle(sql, {schema: schema});
+  return drizzle(sql, { schema });
 }
 
-// Export an async function to get DB that ensures initialization
-export async function getDb() {
-  // Ensure app initialization has completed
-  await ensureAppInitialized();
-  
-  // Create DB instance if needed
+/**
+ * Gets (or lazily creates) the database instance
+ */
+export async function getDb(): Promise<DbClient> {
   if (!dbInstance) {
-    dbInstance = createDbClient();
+    dbInstance = await createDbClient();
   }
-  
   return dbInstance;
 }
 
-// For compatibility with existing code
-export const db = createDbClient();
+// Export the async function as the primary way to access the db
+export { getDb as db };

@@ -1,13 +1,16 @@
 // src/app/api/campaigns/[id]/preview-emails/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db as dbClient} from "@/lib/db";
 import { campaigns, campaignAudiences } from "@/lib/schema";
 import { eq, InferSelectModel } from "drizzle-orm";
 import { faker } from '@faker-js/faker';
 import * as schema from '@/lib/schema';
 
 type CampaignSelect = InferSelectModel<typeof schema.campaigns>;
+
+const db = await dbClient();
+
 
 export async function GET(
   request: NextRequest,

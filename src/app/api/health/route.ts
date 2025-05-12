@@ -1,7 +1,9 @@
 // app/api/health/route.ts
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db'; // Your existing db import
+import { db as dbClient} from '@/lib/db'; // Your existing db import
 import { sql } from 'drizzle-orm';
+
+const db = await dbClient();
 
 
 export async function GET() {

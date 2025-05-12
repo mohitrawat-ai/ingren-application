@@ -1,11 +1,13 @@
 // src/app/(dashboard)/campaigns/[id]/page.tsx
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
+import { db as dbClient} from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { AudienceDetails } from "@/components/audience/audience-details";
 import { CampaignHeader } from "@/components/campaign/campaign-header";
 
 import { campaigns } from "@/lib/schema";
+
+const db = await dbClient();
 
 
 interface CampaignDetailsPageProps {

@@ -1,10 +1,12 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db as dbClient} from "@/lib/db";
 import { campaigns, urls } from "@/lib/schema";
 import { eq, count } from "drizzle-orm";
 import { format, subDays } from "date-fns";
+
+const db = await dbClient();
 
 interface DashboardStats {
   campaignStats: {

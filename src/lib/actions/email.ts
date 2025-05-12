@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db as dbClient} from "@/lib/db";
 import { faker } from "@faker-js/faker";
 
 // Interface for personalized email
@@ -14,6 +14,9 @@ interface PersonalizedEmail {
   scheduledTime: Date;
   organization: string;
 }
+
+const db = await dbClient();
+
 
 // Get email threads
 export async function getEmailThreads() {

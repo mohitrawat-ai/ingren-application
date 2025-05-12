@@ -2,7 +2,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db as dbClient } from "@/lib/db";
 import { 
   campaignAudiences,
   audienceContacts,
@@ -11,6 +11,8 @@ import {
 } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { Contact, Organization, CSVContact } from "@/components/campaign/targeting-form/types";
+
+const db = await dbClient();
 
 interface CreateAudienceParams {
   campaignId: number;

@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
+import { db as dbClient} from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { urls } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+
+const db = await dbClient();
+
 
 // Get all URLs
 export async function getUrls() {

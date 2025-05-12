@@ -1,47 +1,55 @@
-// db.ts
+// src/lib/db.ts
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import fs from 'fs';
 import path from 'path';
 import * as schema from './schema';
+import { initializeConfig } from '@/lib/config/init';
 
-// Read the CA certificate
-const pemPath = path.join(process.cwd(), 'certs', 'us-east-1-bundle.pem');
+// Create a lazy-loading DB function that ensures initialization
+let dbInstance: ReturnType<typeof createDbClient> | null = null;
 
-const ca = fs.readFileSync(pemPath).toString();
+function createDbClient() {
+  // Read the CA certificate
+  const pemPath = path.join(process.cwd(), 'certs', 'us-east-1-bundle.pem');
+  const ca = fs.readFileSync(pemPath).toString();
 
-// Create postgres.js client with connection pool settings
-const sql = postgres(process.env.DATABASE_URL!, {
-  // Connection pool settings
-  max: 10,               // Maximum number of connections
-  idle_timeout: 20,      // Max seconds a client can be idle before being removed
-  connect_timeout: 10,   // Max seconds to wait for connection
-  
-  // SSL settings for AWS RDS
-  ssl: {
-    ca: ca,
-    rejectUnauthorized: true
-  },
-  
-  // Other useful options
-  types: {               // Custom type parsers
-    date: {
-      to: 1184,          // Convert 'date' to postgres type OID
-      from: [1082, 1083, 1114, 1184], // Convert from postgres types
-      serialize: (date: Date) => date.toISOString(),
-      parse: (str: string) => new Date(str),
+  // Create postgres.js client with connection pool settings
+  const sql = postgres(process.env.DATABASE_URL!, {
+    max: 10,
+    idle_timeout: 20,
+    connect_timeout: 10,
+    ssl: {
+      ca: ca,
+      rejectUnauthorized: true
     },
-  },
-  
-  // Debug mode (remove in production)
-  debug: process.env.NODE_ENV === 'development',
-  
-  // Disable prepared statements if needed (required for some AWS environments)
-  // prepared: false,
-});
+    types: {
+      date: {
+        to: 1184,
+        from: [1082, 1083, 1114, 1184],
+        serialize: (date: Date) => date.toISOString(),
+        parse: (str: string) => new Date(str),
+      },
+    },
+    debug: process.env.NODE_ENV === 'development',
+  });
 
-// Initialize Drizzle with the postgres.js client
-export const db = drizzle(sql, {schema: schema});
+  // Initialize Drizzle with the postgres.js client
+  return drizzle(sql, {schema: schema});
+}
 
-// Export sql client for direct queries if needed
-export { sql };
+// Export an async function to get DB that ensures initialization
+export async function getDb() {
+  // Ensure app initialization has completed
+  await initializeConfig();
+  
+  // Create DB instance if needed
+  if (!dbInstance) {
+    dbInstance = createDbClient();
+  }
+  
+  return dbInstance;
+}
+
+// For compatibility with existing code
+export const db = createDbClient();

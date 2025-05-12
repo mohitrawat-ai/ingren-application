@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "@/components/session-provider";
+import { initializeConfig } from "@/lib/config/init";
 
 const fontSans = FontSans({ 
   subsets: ["latin"], 
@@ -15,11 +16,15 @@ export const metadata = {
   description: "A modern sales campaign management platform",
 };
 
-export default function RootLayout({
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Wait for initialization to complete
+  await initializeConfig();
+  
   return (
     <html lang="en" suppressHydrationWarning>
       <head />

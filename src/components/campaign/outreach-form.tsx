@@ -57,7 +57,7 @@ type OutreachFormValues = z.infer<typeof outreachFormSchema>;
 interface OutreachFormProps {
   onSubmit: (data: OutreachFormValues) => void;
   isSubmitting?: boolean;
-  initialData?: OutreachFormValues;
+  initialData?: OutreachFormValues | null;
 }
 
 export function OutreachForm({

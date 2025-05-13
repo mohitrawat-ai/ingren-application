@@ -13,11 +13,15 @@ import {
   targetOrganizations,
   targetJobTitles,
   campaignAudiences,
-  audienceContacts
+  audienceContacts,
+  campaignOutreach,
+  ctaOptions,
+  personalizationSources
 } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
+import { OutreachFormData, SettingsFormData, TargetingFormData } from "@/types";
 
 const db = await dbClient();
 
@@ -153,28 +157,7 @@ export async function deleteCampaign(id: number) {
 // Save targeting data
 export async function saveTargeting(
   campaignId: number,
-  data: {
-    organizations: Array<{
-      organizationId: string;
-      name: string;
-      industry?: string;
-      employeeCount?: string;
-    }>;
-    jobTitles: string[];
-    contacts: Array<{
-      id: string;
-      name: string;
-      title: string;
-      organization: {
-        name: string;
-      };
-      city?: string;
-      state?: string;
-      country?: string;
-      email?: string;
-    }>;
-    totalResults: number;
-  }
+  data: TargetingFormData
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -205,11 +188,11 @@ export async function saveTargeting(
     await tx.delete(targetJobTitles).where(eq(targetJobTitles.campaignId, campaignId));
 
     // Insert new targeting data
-    if (data.organizations.length) {
+    if (data.organizations?.length) {
       await tx.insert(targetOrganizations).values(
         data.organizations.map(org => ({
           campaignId,
-          organizationId: org.organizationId,
+          organizationId: org.id,
           name: org.name,
           industry: org.industry,
           employeeCount: org.employeeCount,
@@ -217,7 +200,7 @@ export async function saveTargeting(
       );
     }
 
-    if (data.jobTitles.length) {
+    if (data.jobTitles?.length) {
       await tx.insert(targetJobTitles).values(
         data.jobTitles.map(title => ({
           campaignId,
@@ -226,13 +209,14 @@ export async function saveTargeting(
       );
     }
 
+    
     // Create campaign audience
     const [audience] = await tx
       .insert(campaignAudiences)
       .values({
         campaignId,
         name: `Audience ${new Date().toLocaleDateString()}`,
-        totalResults: data.totalResults,
+        totalResults: data.totalResults || 0,
       })
       .returning();
 
@@ -322,36 +306,88 @@ export async function savePitch(
   revalidatePath(`/campaigns/${campaignId}`);
 }
 
+
+// Save outreach data
+export async function saveOutreach(
+  campaignId: number,
+  data: OutreachFormData
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+    // Verify campaign ownership
+    const campaign = await db.query.campaigns.findFirst({
+      where: and(
+        eq(campaigns.id, campaignId),
+        eq(campaigns.userId, session.user.id)
+      ),
+    });
+  
+    if (!campaign) {
+      throw new Error("Campaign not found");
+    }
+
+    await db.transaction(async (tx) => {
+      // Create or update pitch
+      await tx
+        .insert(campaignOutreach)
+        .values({
+          campaignId,
+          messageTone: data.messageTone,
+          selectedCta: data.selectedCta,
+        })
+        .onConflictDoUpdate({
+          target: [campaignPitch.campaignId],
+          set: {
+            messageTone: data.messageTone,
+            selectedCta: data.selectedCta,
+          },
+        })
+        .returning();
+
+       // Clear existing CTA options and personalization sources
+       await tx.delete(ctaOptions).where(eq(ctaOptions.campaignId, campaignId));
+       await tx.delete(personalizationSources).where(eq(personalizationSources.campaignId, campaignId));
+   
+       // Insert new CTA options
+       if (data.ctaOptions.length) {
+         await tx.insert(ctaOptions).values(
+           data.ctaOptions.map(option => {
+            return {
+             campaignId,
+             label: option.label,
+             sourceId : option.id
+            }
+           })
+         );
+       }
+   
+       // Insert new personalization sources
+       if (data.personalizationSources.length) {
+         await tx.insert(personalizationSources).values(
+           data.personalizationSources.map(source => {
+             return {
+             campaignId,
+             label : source.label,
+            enabled: +source.enabled,
+            sourceId: source.id
+           }
+       })
+    );
+  } 
+    }); 
+  
+    revalidatePath(`/campaigns/${campaignId}`);
+}
+
+
+
+
 // Save settings data
 export async function saveSettings(
   campaignId: number,
-  data: {
-    emailSettings : {
-      fromName: string;
-      fromEmail: string;
-      emailService: string;
-    },campaignSettings : {
-      timezone: string;
-      trackOpens: boolean;
-      trackClicks: boolean;
-      dailySendLimit: number;
-      unsubscribeLink: boolean;
-      sendingTime: {
-        startTime: string;
-        endTime: string;
-      };
-      sendingDays: {
-        monday: boolean;
-        tuesday: boolean;
-        wednesday: boolean;
-        thursday: boolean;
-        friday: boolean;
-        saturday: boolean;
-        sunday: boolean;
-      };
-      name: string;
-  }
-  }
+  data: SettingsFormData
 ) {
   const session = await auth();
   if (!session?.user?.id) {

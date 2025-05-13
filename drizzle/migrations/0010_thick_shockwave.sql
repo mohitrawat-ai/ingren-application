@@ -1,0 +1,1 @@
+ALTER TABLE "campaign_outreach" DROP COLUMN "selected_personalization_source";

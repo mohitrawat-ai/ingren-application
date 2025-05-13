@@ -119,6 +119,31 @@ export const targetJobTitles = pgTable('target_job_titles', {
   title: text('title').notNull(),
 });
 
+// Outreach settings
+export const campaignOutreach = pgTable('campaign_outreach', {
+  id: serial('id').primaryKey(),
+  campaignId: integer('campaign_id').references(() => campaigns.id, { onDelete: 'cascade' }).notNull().unique(),
+  messageTone: text('message_tone').notNull().default('professional'),
+  selectedCta: text('selected_cta').notNull(),
+});
+
+// CTA options
+export const ctaOptions = pgTable('cta_options', {
+  id: serial('id').primaryKey(),
+  campaignId: integer('campaign_id').references(() => campaigns.id, { onDelete: 'cascade' }).notNull(),
+  label: text('label').notNull(),
+  sourceId: text('source_id').notNull(),
+});
+
+// Personalization sources
+export const personalizationSources = pgTable('personalization_sources', {
+  id: serial('id').primaryKey(),
+  campaignId: integer('campaign_id').references(() => campaigns.id, { onDelete: 'cascade' }).notNull(),
+  sourceId: text('source_id').notNull(),
+  label: text('label').notNull(),
+  enabled: integer('enabled').notNull().default(0),
+});
+
 
 // Audience Contacts
 // Extract from src/lib/schema.ts (audienceContacts table)
@@ -165,6 +190,17 @@ export const campaignAudiences = pgTable('campaign_audiences', {
   csvFileName: text('csv_file_name'), // Added field for CSV file reference
 });
 
+export const campaignOutreachRelations = relations(campaignOutreach, ({ one, many }) => ({
+  campaign: many(campaigns),
+  ctaOptions: one(ctaOptions, {
+    fields: [campaignOutreach.campaignId],
+    references: [ctaOptions.campaignId]
+  }),
+  personalizationSources: one(personalizationSources, {
+    fields: [campaignOutreach.campaignId],
+    references: [personalizationSources.campaignId]
+  })
+}));
 
 // Schema relations
 export const campaignRelations = relations(campaigns, ({ one, many }) => ({
@@ -185,6 +221,12 @@ export const campaignRelations = relations(campaigns, ({ one, many }) => ({
     references: [campaignPitch.campaignId],
   }),
   audiences: many(campaignAudiences),
+  outreach: one(campaignOutreach, {
+    fields: [campaigns.id],
+    references: [campaignOutreach.campaignId],
+  }),
+  ctaOptions: many(ctaOptions),
+  personalizationSources: many(personalizationSources),
 }));
 
 export const audienceRelations = relations(campaignAudiences, ({ one, many }) => ({

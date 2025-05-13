@@ -19,97 +19,15 @@ import { PitchForm } from "@/components/campaign/pitch-form";
 import { OutreachForm } from "@/components/campaign/outreach-form";
 import { WorkflowForm } from "@/components/campaign/workflow-form";
 import { SettingsForm } from "@/components/campaign/settings-form";
-import { createCampaign, savePitch, saveSettings } from "@/lib/actions/campaign";
+import { createCampaign, saveOutreach, savePitch, saveSettings } from "@/lib/actions/campaign";
 import { createAudience } from "@/lib/actions/audience";
 import { cn } from "@/lib/utils";
 
-// Define types for each form's data structure
-interface TargetingFormData {
-  organizations?: {
-    id: string;
-    name: string;
-    industry?: string;
-    employeeCount?: string;
-  }[];
-  jobTitles?: string[];
-  contacts: {
-    id: string;
-    name: string;
-    title: string;
-    organization: {
-      name: string;
-    };
-    city?: string;
-    state?: string;
-    country?: string;
-    email?: string;
-    [key: string]: unknown; // For additional fields
-  }[];
-  totalResults?: number;
-  csvFileName?: string;
-}
-
-interface PitchFormData {
-  url: string;
-  description: string;
-  features: Array<{
-    id: number;
-    problem: string;
-    solution: string;
-  }>;
-}
-
-interface OutreachFormData {
-  messageTone: string;
-  selectedCta: string;
-  ctaOptions: Array<{
-    id: string;
-    label: string;
-  }>;
-  personalizationSources: Array<{
-    id: string;
-    label: string;
-    enabled: boolean;
-  }>;
-}
-
-interface WorkflowFormData {
-  enableFollowUp: boolean;
-  followUpConfig: {
-    waitDays: number;
-    emailSubject?: string;
-    emailBody?: string;
-  };
-}
-
-interface SettingsFormData {
-  emailSettings: {
-    fromName: string;
-    fromEmail: string;
-    emailService: string;
-  };
-  campaignSettings: {
-    name: string;
-    timezone: string;
-    trackOpens: boolean;
-    trackClicks: boolean;
-    dailySendLimit: number;
-    unsubscribeLink: boolean;
-    sendingTime: {
-      startTime: string;
-      endTime: string;
-    };
-    sendingDays: {
-      monday: boolean;
-      tuesday: boolean;
-      wednesday: boolean;
-      thursday: boolean;
-      friday: boolean;
-      saturday: boolean;
-      sunday: boolean;
-    };
-  };
-}
+import { SettingsFormData } from "@/types";
+import { TargetingFormData } from "@/types";
+import { PitchFormData } from "@/types";
+import { OutreachFormData } from "@/types";
+import { WorkflowFormData } from "@/types";
 
 const steps = [
   { id: 0, label: "Targeting", description: "Define your target audience" },
@@ -137,19 +55,6 @@ export default function NewCampaignPage() {
     description: "",
     features: [
       { problem: "", solution: "", id: 1 }
-    ],
-  };
-
-  const defaultOutreachData: OutreachFormData = {
-    messageTone: "professional",
-    selectedCta: "call",
-    ctaOptions: [
-      { id: "call", label: "Schedule a Call" },
-      { id: "demo", label: "Request a Demo" },
-    ],
-    personalizationSources: [
-      { id: "linkedin", label: "LinkedIn Profile Data", enabled: true },
-      { id: "website", label: "Company Website", enabled: false },
     ],
   };
 
@@ -255,7 +160,8 @@ export default function NewCampaignPage() {
             break;
           case "outreach":
             // Assuming there would be a saveOutreach function
-            // await saveOutreach(campaignId, data);
+            const outreachData = data as OutreachFormData
+            await saveOutreach(campaignId, outreachData);
             toast.success("Outreach data saved successfully");
             break;
           case "workflow":
@@ -387,7 +293,7 @@ export default function NewCampaignPage() {
               <OutreachForm 
                 onSubmit={(data) => handleStepSubmit("outreach", data)}
                 isSubmitting={isSubmitting}
-                initialData={formData.outreach || defaultOutreachData}
+                initialData={formData.outreach}
               />
             )}
             {activeStep === 3 && (

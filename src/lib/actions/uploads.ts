@@ -41,6 +41,14 @@ export async function saveCSVFile(fileBuffer: ArrayBuffer): Promise<{ filePath: 
 
 // src/lib/actions/uploads.ts (parseCSVFile function)
 
+const expectedColumns = ["first_name","last_name","job_title","department","tenure_months","notable_achievement","company_name","industry","employee_count","annual_revenue","funding_stage","growth_signals","recent_news","technography","description","name","title","company","email","city","state","country"]
+function getDefaultValue(column: string) {
+  if(column === "tenure_months") {
+    return 0
+  }
+  return ""
+}
+
 export async function parseCSVFile(filePath: string): Promise<CSVContact[]> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -54,7 +62,9 @@ export async function parseCSVFile(filePath: string): Promise<CSVContact[]> {
       Papa.parse(csvText, {
         header: true,
         skipEmptyLines: true,
-        dynamicTyping: true,
+        dynamicTyping: function(columnName) {
+          return columnName !== "employee_count"; // all except this one are typed
+        },
         complete: (results) => {
           const data = results.data as CSVContact[];
           
@@ -62,17 +72,24 @@ export async function parseCSVFile(filePath: string): Promise<CSVContact[]> {
           const validData = data.filter(row => {
             // Check if we have either name or first_name & last_name
             const hasName = row.name || (row.first_name && row.last_name);
+
+            // Check if we have email
+            const hasEmail = row.email;
             
-            // Check if we have either title or job_title
-            const hasTitle = row.title || row.job_title;
-            
-            // Check if we have either company or company_name
-            const hasCompany = row.company || row.company_name;
-            
-            return hasName && hasTitle && hasCompany;
+            return hasName && hasEmail;
           });
+
+          const resolvedData = validData.map(row => {
+          const newRow = { ...row };
+          for (const col of expectedColumns) {
+            if (!(col in newRow) || newRow[col] === undefined || newRow[col] === null) {
+              newRow[col] = getDefaultValue(col);
+            }
+          }
+            return newRow;
+           });
           
-          resolve(validData);
+          resolve(resolvedData);
         },
         error: (error: unknown) => {
           reject(error);

@@ -18,7 +18,7 @@ import {
   ctaOptions,
   personalizationSources
 } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
 import { OutreachFormData, SettingsFormData, TargetingFormData } from "@/types";
@@ -53,7 +53,10 @@ export async function getCampaigns() {
   }
 
   const campaignsList = await db.query.campaigns.findMany({
-    where: eq(campaigns.userId, session.user.id),
+    where: and(
+        eq(campaigns.userId, session.user.id),
+        ne(campaigns.status, "deleted")
+    ),
     orderBy: [campaigns.createdAt],
     with: {
       settings: true,
@@ -142,14 +145,16 @@ export async function deleteCampaign(id: number) {
     throw new Error("Unauthorized");
   }
 
+  // rather then deleting the campaign, we can just update the status to "deleted"
   await db
-    .delete(campaigns)
+    .update(campaigns)
+    .set({ status: "deleted" })
     .where(
       and(
         eq(campaigns.id, id),
         eq(campaigns.userId, session.user.id)
       )
-    );
+    )
 
   revalidatePath("/campaigns");
 }

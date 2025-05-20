@@ -71,19 +71,31 @@ export default function ProspectDetail({ params }: ProspectDetailProps) {
   console.log("Component is rendering with numericId:", numericId);
 
 
-  useEffect(() => {
-    console.log("Numeric ID:", numericId);
-    if (isNaN(numericId)) {
-      toast.error("Invalid list ID");
-      router.push("/prospects");
-      return;
-    }
-    
-    fetchList(numericId).catch(error => {
-      console.error("Error fetching list:", error);
+// Replace your useEffect with this updated version
+useEffect(() => {
+  console.log("Effect running with numericId:", numericId);
+  
+  if (isNaN(numericId)) {
+    toast.error("Invalid list ID");
+    router.push("/prospects");
+    return;
+  }
+  
+  console.log("Starting to fetch list with ID:", numericId);
+  
+  const loadList = async () => {
+    try {
+      await fetchList(numericId);
+      console.log("After fetchList, currentList:", useProspectListStore.getState().currentList);
+      console.log("After fetchList, paginatedContacts:", useProspectListStore.getState().paginatedContacts);
+    } catch (error) {
+      console.error("Error in fetchList:", error);
       toast.error("Failed to load prospect list");
-    });
-  }, [numericId, fetchList, router]);
+    }
+  };
+  
+  loadList();
+}, [numericId, fetchList, router]);
 
   const handleDelete = async () => {
     if (!currentList) return;

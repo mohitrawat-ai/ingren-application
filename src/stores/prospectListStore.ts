@@ -22,7 +22,7 @@ interface ProspectListState {
   // Selected contacts
   selectedContacts: ContactType[];
   
-  // Computed
+  // Derived data (computed at runtime)
   filteredContacts: ContactType[];
   paginatedContacts: ContactType[];
   totalPages: number;
@@ -44,6 +44,9 @@ interface ProspectListState {
   // Pagination actions
   nextPage: () => void;
   prevPage: () => void;
+  
+  // Derived data calculation
+  updateDerivedState: () => void;
 }
 
 export const useProspectListStore = create<ProspectListState>((set, get) => ({
@@ -57,34 +60,47 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
   itemsPerPage: 10,
   selectedContacts: [],
   
-  // Computed properties
-  get filteredContacts() {
-    const { currentList, filterText } = get();
-    if (!currentList) return [];
-    
-    if (!filterText) return currentList.contacts;
-    
-    const searchText = filterText.toLowerCase();
-    return currentList.contacts.filter(contact => {
-      return (
-        (contact.name && contact.name.toLowerCase().includes(searchText)) ||
-        (contact.title && contact.title.toLowerCase().includes(searchText)) ||
-        (contact.organizationName && contact.organizationName.toLowerCase().includes(searchText)) ||
-        (contact.email && contact.email.toLowerCase().includes(searchText))
-      );
-    });
-  },
+  // Derived data (initial empty values)
+  filteredContacts: [],
+  paginatedContacts: [],
+  totalPages: 0,
   
-  get paginatedContacts() {
-    const { filteredContacts, currentPage, itemsPerPage } = get();
+  // Helper function to update derived state
+  updateDerivedState: () => {
+    const { currentList, filterText, currentPage, itemsPerPage } = get();
+    
+    // Calculate filtered contacts
+    let filteredContacts: ContactType[] = [];
+    if (currentList && currentList.contacts) {
+      if (!filterText) {
+        filteredContacts = [...currentList.contacts];
+      } else {
+        const searchText = filterText.toLowerCase();
+        filteredContacts = currentList.contacts.filter(contact => {
+          return (
+            (contact.name && contact.name.toLowerCase().includes(searchText)) ||
+            (contact.title && contact.title.toLowerCase().includes(searchText)) ||
+            (contact.organizationName && contact.organizationName.toLowerCase().includes(searchText)) ||
+            (contact.email && contact.email.toLowerCase().includes(searchText))
+          );
+        });
+      }
+    }
+    
+    // Calculate paginated contacts
     const start = (currentPage - 1) * itemsPerPage;
     const end = start + itemsPerPage;
-    return filteredContacts.slice(start, end);
-  },
-  
-  get totalPages() {
-    const { filteredContacts, itemsPerPage } = get();
-    return Math.ceil(filteredContacts.length / itemsPerPage);
+    const paginatedContacts = filteredContacts.slice(start, end);
+    
+    // Calculate total pages
+    const totalPages = Math.ceil(filteredContacts.length / itemsPerPage);
+    
+    // Update the state with derived values
+    set({ 
+      filteredContacts, 
+      paginatedContacts, 
+      totalPages 
+    });
   },
   
   // Actions - Data loading
@@ -101,10 +117,19 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
   },
   
   fetchList: async (id) => {
+    console.log(`fetchList called with id: ${id}`);
     set({ loadingCurrentList: true });
     try {
+      console.log(`Calling getProspectList with id: ${id}`);
       const list = await getProspectList(id);
+      console.log(`getProspectList returned:`, list);
+      
       set({ currentList: list, loadingCurrentList: false, currentPage: 1, selectedContacts: [] });
+      
+      // Update the derived state after setting currentList
+      setTimeout(() => get().updateDerivedState(), 0);
+      
+      console.log(`State updated with currentList`);
     } catch (error) {
       set({ loadingCurrentList: false });
       console.error('Error fetching prospect list:', error);
@@ -127,8 +152,17 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
   },
   
   // Actions - UI state
-  setFilterText: (text) => set({ filterText: text, currentPage: 1 }),
-  setCurrentPage: (page) => set({ currentPage: page }),
+  setFilterText: (text) => {
+    set({ filterText: text, currentPage: 1 });
+    // Update derived state when filter changes
+    setTimeout(() => get().updateDerivedState(), 0);
+  },
+  
+  setCurrentPage: (page) => {
+    set({ currentPage: page });
+    // Update derived state when page changes
+    setTimeout(() => get().updateDerivedState(), 0);
+  },
   
   // Actions - Selection
   toggleContactSelection: (contact) => {
@@ -176,6 +210,8 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
     const { currentPage, totalPages } = get();
     if (currentPage < totalPages) {
       set({ currentPage: currentPage + 1 });
+      // Update derived state after page change
+      setTimeout(() => get().updateDerivedState(), 0);
     }
   },
   
@@ -183,6 +219,8 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
     const { currentPage } = get();
     if (currentPage > 1) {
       set({ currentPage: currentPage - 1 });
+      // Update derived state after page change
+      setTimeout(() => get().updateDerivedState(), 0);
     }
   },
 }));

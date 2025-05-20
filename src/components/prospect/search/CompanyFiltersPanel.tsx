@@ -1,3 +1,4 @@
+// src/components/prospect/search/CompanyFiltersPanel.tsx - With Zustand
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,13 +9,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-import { CompanyFilters } from "../types";
-
-interface CompanyFiltersPanelProps {
-  filters: CompanyFilters;
-  onIndustryChange: (industry: string) => void;
-  onEmployeeSizeChange: (size: string) => void;
-}
+import { useProspectSearchStore } from "@/stores/prospectStore";
 
 // Sample industry options (these would come from an API)
 const industryOptions = [
@@ -28,11 +23,17 @@ const employeeSizeOptions = [
   "501-1000", "1001-5000", "5001-10000", "10000+"
 ];
 
-export function CompanyFiltersPanel({ 
-  filters, 
-  onIndustryChange, 
-  onEmployeeSizeChange 
-}: CompanyFiltersPanelProps) {
+export function CompanyFiltersPanel() {
+  const { companyFilters, updateCompanyFilter } = useProspectSearchStore();
+
+  const handleIndustryChange = (industry: string) => {
+    updateCompanyFilter('industries', industry);
+  };
+
+  const handleEmployeeSizeChange = (size: string) => {
+    updateCompanyFilter('employeeSizes', size);
+  };
+
   return (
     <Accordion type="multiple" className="w-full">
       <AccordionItem value="industries">
@@ -43,8 +44,8 @@ export function CompanyFiltersPanel({
               <div key={industry} className="flex items-center space-x-2">
                 <Checkbox 
                   id={`industry-${industry}`} 
-                  checked={filters.industries.includes(industry)}
-                  onCheckedChange={() => onIndustryChange(industry)}
+                  checked={companyFilters.industries.includes(industry)}
+                  onCheckedChange={() => handleIndustryChange(industry)}
                 />
                 <label
                   htmlFor={`industry-${industry}`}
@@ -66,8 +67,8 @@ export function CompanyFiltersPanel({
               <div key={size} className="flex items-center space-x-2">
                 <Checkbox 
                   id={`size-${size}`} 
-                  checked={filters.employeeSizes.includes(size)}
-                  onCheckedChange={() => onEmployeeSizeChange(size)}
+                  checked={companyFilters.employeeSizes.includes(size)}
+                  onCheckedChange={() => handleEmployeeSizeChange(size)}
                 />
                 <label
                   htmlFor={`size-${size}`}

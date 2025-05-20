@@ -1,3 +1,4 @@
+// src/components/prospect/search/ProspectFiltersPanel.tsx - With Zustand
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,14 +9,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-import { ProspectFilters } from "../types";
-
-interface ProspectFiltersPanelProps {
-  filters: ProspectFilters;
-  onTitleChange: (title: string) => void;
-  onDepartmentChange: (department: string) => void;
-  onSeniorityChange: (seniority: string) => void;
-}
+import { useProspectSearchStore } from "@/stores/prospectStore";
 
 // Sample job title options
 const titleOptions = [
@@ -34,12 +28,21 @@ const seniorityOptions = [
   "C-Level", "VP", "Director", "Manager", "Individual Contributor"
 ];
 
-export function ProspectFiltersPanel({ 
-  filters, 
-  onTitleChange, 
-  onDepartmentChange, 
-  onSeniorityChange 
-}: ProspectFiltersPanelProps) {
+export function ProspectFiltersPanel() {
+  const { prospectFilters, updateProspectFilter } = useProspectSearchStore();
+
+  const handleTitleChange = (title: string) => {
+    updateProspectFilter('titles', title);
+  };
+
+  const handleDepartmentChange = (department: string) => {
+    updateProspectFilter('departments', department);
+  };
+
+  const handleSeniorityChange = (seniority: string) => {
+    updateProspectFilter('seniorities', seniority);
+  };
+
   return (
     <Accordion type="multiple" className="w-full">
       <AccordionItem value="titles">
@@ -50,8 +53,8 @@ export function ProspectFiltersPanel({
               <div key={title} className="flex items-center space-x-2">
                 <Checkbox 
                   id={`title-${title}`} 
-                  checked={filters.titles.includes(title)}
-                  onCheckedChange={() => onTitleChange(title)}
+                  checked={prospectFilters.titles.includes(title)}
+                  onCheckedChange={() => handleTitleChange(title)}
                 />
                 <label
                   htmlFor={`title-${title}`}
@@ -73,8 +76,8 @@ export function ProspectFiltersPanel({
               <div key={department} className="flex items-center space-x-2">
                 <Checkbox 
                   id={`department-${department}`} 
-                  checked={filters.departments.includes(department)}
-                  onCheckedChange={() => onDepartmentChange(department)}
+                  checked={prospectFilters.departments.includes(department)}
+                  onCheckedChange={() => handleDepartmentChange(department)}
                 />
                 <label
                   htmlFor={`department-${department}`}
@@ -96,8 +99,8 @@ export function ProspectFiltersPanel({
               <div key={seniority} className="flex items-center space-x-2">
                 <Checkbox 
                   id={`seniority-${seniority}`} 
-                  checked={filters.seniorities.includes(seniority)}
-                  onCheckedChange={() => onSeniorityChange(seniority)}
+                  checked={prospectFilters.seniorities.includes(seniority)}
+                  onCheckedChange={() => handleSeniorityChange(seniority)}
                 />
                 <label
                   htmlFor={`seniority-${seniority}`}

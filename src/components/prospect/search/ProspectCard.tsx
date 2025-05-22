@@ -9,10 +9,10 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
-import { Contact } from "../types";
+import { Prospect } from "@/types";
 
 interface ProspectCardProps {
-  prospect: Contact;
+  prospect: Prospect;
   isSelected: boolean;
   onSelect: () => void;
 }
@@ -33,13 +33,13 @@ export function ProspectCard({ prospect, isSelected, onSelect }: ProspectCardPro
         <div className="flex items-start gap-4">
           <Avatar>
             <AvatarFallback>
-              {getInitials(prospect.name)}
+              {getInitials(prospect.firstName + " " + prospect.lastName)}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1">
             <div className="flex justify-between">
-              <h3 className="font-semibold">{prospect.name}</h3>
+              <h3 className="font-semibold">{prospect.firstName} {prospect.lastName}</h3>
               <Button
                 variant={isSelected ? "default" : "outline"}
                 size="sm"
@@ -63,7 +63,7 @@ export function ProspectCard({ prospect, isSelected, onSelect }: ProspectCardPro
             
             <div className="flex items-center mt-2">
               <Building className="h-4 w-4 mr-1 text-muted-foreground" />
-              <span className="text-sm">{prospect.organization.name}</span>
+              <span className="text-sm">{prospect.companyName}</span>
             </div>
             
             {prospect.email && (
@@ -73,9 +73,9 @@ export function ProspectCard({ prospect, isSelected, onSelect }: ProspectCardPro
               </div>
             )}
             
-            {(prospect.city || prospect.state || prospect.country) && (
+            {(prospect.country) && (
               <div className="text-sm text-muted-foreground mt-1">
-                {[prospect.city, prospect.state, prospect.country].filter(Boolean).join(", ")}
+                {prospect.country}
               </div>
             )}
           </div>

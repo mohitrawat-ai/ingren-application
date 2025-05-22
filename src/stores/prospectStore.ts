@@ -1,12 +1,15 @@
 // src/stores/prospectStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Company, Contact, CompanyFilters, ProspectFilters } from '@/components/prospect/types';
+import { Company, Prospect, CompanyFilters, ProspectFilters } from '@/types';
+import { saveProspectList } from '@/lib/actions/prospect';
 import { 
-  searchCompanies, 
-  searchProspects, 
-  saveProspectList, 
-} from '@/lib/actions/prospect';
+  ProviderCompanyFilters, 
+  ProviderProspectFilters,
+  PaginationInfo 
+} from '@/types';
+
+import * as providerApi from '@/lib/actions/provider';
 
 interface ProspectSearchState {
   // Company search state
@@ -15,13 +18,15 @@ interface ProspectSearchState {
   companies: Company[];
   selectedCompanies: Company[];
   loadingCompanies: boolean;
+  companyPagination: PaginationInfo | null;
   
   // Prospect search state
   prospectQuery: string;
   prospectFilters: ProspectFilters;
-  prospects: Contact[];
-  selectedProspects: Contact[];
+  prospects: Prospect[];
+  selectedProspects: Prospect[];
   loadingProspects: boolean;
+  prospectPagination: PaginationInfo | null;
   searchMode: 'all' | 'selection';
   
   // List management state
@@ -34,15 +39,15 @@ interface ProspectSearchState {
   // Actions - Companies
   setCompanyQuery: (query: string) => void;
   updateCompanyFilter: (filterType: keyof CompanyFilters, value: string) => void;
-  searchCompanies: () => Promise<void>;
+  searchCompanies: (page?: number) => Promise<void>;
   toggleCompanySelection: (company: Company) => void;
   clearCompanySelections: () => void;
   
   // Actions - Prospects
   setProspectQuery: (query: string) => void;
   updateProspectFilter: (filterType: keyof ProspectFilters, value: string) => void;
-  searchProspects: () => Promise<void>;
-  toggleProspectSelection: (prospect: Contact) => void;
+  searchProspects: (page?: number) => Promise<void>;
+  toggleProspectSelection: (prospect: Prospect) => void;
   clearProspectSelections: () => void;
   setSearchMode: (mode: 'all' | 'selection') => void;
   
@@ -62,11 +67,12 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       companyQuery: '',
       companyFilters: {
         industries: [],
-        employeeSizes: [],
+        sizes: [],
       },
       companies: [],
       selectedCompanies: [],
       loadingCompanies: false,
+      companyPagination: null,
       
       // Initial state - Prospects
       prospectQuery: '',
@@ -78,6 +84,7 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       prospects: [],
       selectedProspects: [],
       loadingProspects: false,
+      prospectPagination: null,
       searchMode: 'all',
       
       // Initial state - List management
@@ -92,7 +99,7 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       
       updateCompanyFilter: (filterType, value) => {
         const currentFilters = get().companyFilters;
-        const currentValues = currentFilters[filterType];
+        const currentValues = currentFilters[filterType] || [];
         
         // Toggle the value (add if not present, remove if present)
         const updatedValues = currentValues.includes(value)
@@ -107,13 +114,26 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         });
       },
       
-      searchCompanies: async () => {
+      searchCompanies: async (page = 1) => {
         const { companyQuery, companyFilters } = get();
         
         set({ loadingCompanies: true });
         try {
-          const results = await searchCompanies(companyQuery, companyFilters);
-          set({ companies: results, loadingCompanies: false });
+          // Convert to provider API format
+          const providerFilters: ProviderCompanyFilters = {
+            ...companyFilters,
+            keywords: companyQuery,
+            page,
+            pageSize: 10
+          };
+          
+          const response = await providerApi.searchCompanies(providerFilters);
+          
+          set({ 
+            companies: response.companies, 
+            companyPagination: response.pagination,
+            loadingCompanies: false 
+          });
         } catch (error) {
           set({ loadingCompanies: false });
           console.error('Error searching companies:', error);
@@ -145,7 +165,7 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       
       updateProspectFilter: (filterType, value) => {
         const currentFilters = get().prospectFilters;
-        const currentValues = currentFilters[filterType];
+        const currentValues = currentFilters[filterType]|| [];
         
         // Toggle the value
         const updatedValues = currentValues.includes(value)
@@ -160,17 +180,31 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         });
       },
       
-      searchProspects: async () => {
+      searchProspects: async (page = 1) => {
         const { prospectQuery, prospectFilters, selectedCompanies, searchMode } = get();
         
         set({ loadingProspects: true });
         try {
-          const companyIds = searchMode === 'selection' 
+          // Determine company scope based on selection mode
+          const companyScope = searchMode === 'selection' 
             ? selectedCompanies.map(c => c.id) 
             : undefined;
           
-          const results = await searchProspects(prospectQuery, prospectFilters, companyIds);
-          set({ prospects: results, loadingProspects: false });
+          // Convert to provider API format
+          const providerFilters: ProviderProspectFilters = {
+            ...prospectFilters,
+            keywords: prospectQuery,
+            page,
+            pageSize: 10
+          };
+          
+          const response = await providerApi.searchProspects(providerFilters, companyScope);
+          
+          set({ 
+            prospects: response.prospects, 
+            prospectPagination: response.pagination,
+            loadingProspects: false 
+          });
         } catch (error) {
           set({ loadingProspects: false });
           console.error('Error searching prospects:', error);
@@ -239,10 +273,11 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         companyQuery: '',
         companyFilters: {
           industries: [],
-          employeeSizes: [],
+          sizes: [],
         },
         companies: [],
         selectedCompanies: [],
+        companyPagination: null,
         prospectQuery: '',
         prospectFilters: {
           titles: [],
@@ -251,6 +286,7 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         },
         prospects: [],
         selectedProspects: [],
+        prospectPagination: null,
         searchMode: 'all',
         newListName: '',
         activeTab: 'companies',

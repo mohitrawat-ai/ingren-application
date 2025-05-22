@@ -1,39 +1,167 @@
 "use client";
 
+import { useState } from "react";
 import { Search, X, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/pagination";
 
 import { CompanyCard } from "./CompanyCard";
-import { Company, CompanyFilters } from "../types";
+import { useProspectSearchStore } from "@/stores/prospectStore";
 
-interface CompanySearchTabProps {
-  query: string;
-  onQueryChange: (query: string) => void;
-  onSearch: () => void;
-  isLoading: boolean;
-  companies: Company[];
-  selectedCompanies: Company[];
-  onToggleCompanySelection: (company: Company) => void;
-  filters: CompanyFilters;
-  onIndustryChange: (industry: string) => void;
-  onEmployeeSizeChange: (size: string) => void;
-}
 
-export function CompanySearchTab({
-  query,
-  onQueryChange,
-  onSearch,
-  isLoading,
-  companies,
-  selectedCompanies,
-  onToggleCompanySelection,
-  filters,
-  onIndustryChange,
-  onEmployeeSizeChange
-}: CompanySearchTabProps) {
+export function CompanySearchTab() {
+  // Get everything from the store
+  const {
+    companyQuery, 
+    setCompanyQuery,
+    searchCompanies,
+    loadingCompanies,
+    companies,
+    selectedCompanies,
+    toggleCompanySelection,
+    companyFilters,
+    updateCompanyFilter,
+    companyPagination
+  } = useProspectSearchStore();
+
+  // Local state for handling the enter key in search
+  const [searchInputValue, setSearchInputValue] = useState(companyQuery);
+
+  const handleSearch = async () => {
+    // Update the store query with our local value
+    setCompanyQuery(searchInputValue);
+    await searchCompanies(1); // Always start from page 1 when searching
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  const handleIndustryChange = (industry: string) => {
+    updateCompanyFilter('industries', industry);
+  };
+
+  const handleEmployeeSizeChange = (size: string) => {
+    updateCompanyFilter('sizes', size);
+  };
+
+  const handlePageChange = (page: number) => {
+    searchCompanies(page);
+  };
+
+  // Generate pagination items
+  const generatePaginationItems = () => {
+    if (!companyPagination) return null;
+    
+    const { page, total: totalPages } = companyPagination;
+    const items = [];
+    
+    // Previous button
+    items.push(
+      <PaginationItem key="prev">
+        <PaginationPrevious 
+          onClick={() => page > 1 && handlePageChange(page - 1)}
+          className={page === 1 ? "pointer-events-none opacity-50" : ""}
+        />
+      </PaginationItem>
+    );
+    
+    // Page numbers with ellipsis for large ranges
+    const maxVisible = 5;
+    let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+    const endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    // Adjust start page if we're near the end
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    // First page
+    if (startPage > 1) {
+      items.push(
+        <PaginationItem key="1">
+          <PaginationLink 
+            onClick={() => handlePageChange(1)}
+            isActive={page === 1}
+          >
+            1
+          </PaginationLink>
+        </PaginationItem>
+      );
+      
+      // Ellipsis after first page if needed
+      if (startPage > 2) {
+        items.push(
+          <PaginationItem key="ellipsis-1">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+    }
+    
+    // Visible pages
+    for (let i = startPage; i <= endPage; i++) {
+      items.push(
+        <PaginationItem key={i}>
+          <PaginationLink 
+            onClick={() => handlePageChange(i)}
+            isActive={page === i}
+          >
+            {i}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+    
+    // Ellipsis before last page if needed
+    if (endPage < totalPages - 1) {
+      items.push(
+        <PaginationItem key="ellipsis-2">
+          <PaginationEllipsis />
+        </PaginationItem>
+      );
+    }
+    
+    // Last page
+    if (endPage < totalPages) {
+      items.push(
+        <PaginationItem key={totalPages}>
+          <PaginationLink 
+            onClick={() => handlePageChange(totalPages)}
+            isActive={page === totalPages}
+          >
+            {totalPages}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+    
+    // Next button
+    items.push(
+      <PaginationItem key="next">
+        <PaginationNext 
+          onClick={() => page < totalPages && handlePageChange(page + 1)}
+          className={page === totalPages ? "pointer-events-none opacity-50" : ""}
+        />
+      </PaginationItem>
+    );
+    
+    return items;
+  };
+
   return (
     <div className="flex-1 flex flex-col">
       <div className="p-4 border-b">
@@ -42,33 +170,34 @@ export function CompanySearchTab({
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search companies..."
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
+              value={searchInputValue}
+              onChange={(e) => setSearchInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="pl-8"
             />
           </div>
-          <Button onClick={onSearch} disabled={isLoading}>
-            {isLoading ? "Searching..." : "Search"}
+          <Button onClick={handleSearch} disabled={loadingCompanies}>
+            {loadingCompanies ? "Searching..." : "Search"}
           </Button>
         </div>
         
         <div className="flex gap-2 mt-2">
-          {filters.industries.map(industry => (
+          {companyFilters.industries.map(industry => (
             <Badge key={industry} variant="outline" className="flex items-center gap-1">
               {industry}
               <X 
                 className="h-3 w-3 cursor-pointer" 
-                onClick={() => onIndustryChange(industry)}
+                onClick={() => handleIndustryChange(industry)}
               />
             </Badge>
           ))}
           
-          {filters.employeeSizes.map(size => (
+          {companyFilters.sizes.map(size => (
             <Badge key={size} variant="outline" className="flex items-center gap-1">
               {size} employees
               <X 
                 className="h-3 w-3 cursor-pointer" 
-                onClick={() => onEmployeeSizeChange(size)}
+                onClick={() => handleEmployeeSizeChange(size)}
               />
             </Badge>
           ))}
@@ -76,7 +205,7 @@ export function CompanySearchTab({
       </div>
       
       <div className="flex-1 p-4 overflow-auto">
-        {isLoading ? (
+        {loadingCompanies ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
               <div key={i}>
@@ -101,18 +230,35 @@ export function CompanySearchTab({
                 key={company.id}
                 company={company}
                 isSelected={selectedCompanies.some(c => c.id === company.id)}
-                onSelect={() => onToggleCompanySelection(company)}
+                onSelect={() => toggleCompanySelection(company)}
               />
             ))}
           </div>
         )}
       </div>
       
+      {companyPagination && companyPagination.pages > 1 && (
+        <div className="p-4 border-t">
+          <Pagination>
+            <PaginationContent>
+              {generatePaginationItems()}
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
+      
       <div className="p-3 border-t bg-muted/30">
         <div className="flex justify-between items-center">
           <div>
             <span className="text-sm text-muted-foreground">
-              {companies.length} companies found
+              {companyPagination ? (
+                <>
+                  {companyPagination.total} companies found 
+                  (Page {companyPagination.page} of {companyPagination.pages})
+                </>
+              ) : (
+                `${companies.length} companies found`
+              )}
             </span>
           </div>
           <div>

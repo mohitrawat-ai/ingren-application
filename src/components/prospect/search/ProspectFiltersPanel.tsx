@@ -1,4 +1,3 @@
-// src/components/prospect/search/ProspectFiltersPanel.tsx - With Zustand
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,7 +43,7 @@ export function ProspectFiltersPanel() {
   };
 
   return (
-    <Accordion type="multiple" className="w-full">
+    <Accordion type="multiple" className="w-full" defaultValue={["titles", "departments", "seniority"]}>
       <AccordionItem value="titles">
         <AccordionTrigger className="py-2">Job Titles</AccordionTrigger>
         <AccordionContent>

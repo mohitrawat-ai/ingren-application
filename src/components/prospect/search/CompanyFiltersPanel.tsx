@@ -1,4 +1,3 @@
-// src/components/prospect/search/CompanyFiltersPanel.tsx - With Zustand
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,7 +10,7 @@ import {
 
 import { useProspectSearchStore } from "@/stores/prospectStore";
 
-// Sample industry options (these would come from an API)
+// Sample industry options (these would come from an API in a production environment)
 const industryOptions = [
   "Technology", "Healthcare", "Finance", "Education", 
   "Manufacturing", "Retail", "Media", "Government"
@@ -31,11 +30,11 @@ export function CompanyFiltersPanel() {
   };
 
   const handleEmployeeSizeChange = (size: string) => {
-    updateCompanyFilter('employeeSizes', size);
+    updateCompanyFilter('sizes', size);
   };
 
   return (
-    <Accordion type="multiple" className="w-full">
+    <Accordion type="multiple" className="w-full" defaultValue={["industries", "employeeSize"]}>
       <AccordionItem value="industries">
         <AccordionTrigger className="py-2">Industries</AccordionTrigger>
         <AccordionContent>
@@ -67,7 +66,7 @@ export function CompanyFiltersPanel() {
               <div key={size} className="flex items-center space-x-2">
                 <Checkbox 
                   id={`size-${size}`} 
-                  checked={companyFilters.employeeSizes.includes(size)}
+                  checked={companyFilters.sizes.includes(size)}
                   onCheckedChange={() => handleEmployeeSizeChange(size)}
                 />
                 <label

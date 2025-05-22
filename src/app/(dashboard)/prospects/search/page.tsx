@@ -47,27 +47,9 @@ export default function ProspectSearch() {
     activeTab,
     setActiveTab,
 
-    // Company state & actions
-    companyQuery,
-    setCompanyQuery,
-    companyFilters,
-    updateCompanyFilter,
-    companies,
-    loadingCompanies,
     selectedCompanies,
-    toggleCompanySelection,
-    searchCompanies,
-
-    // Prospect state & actions
-    prospectQuery,
-    setProspectQuery,
-    prospectFilters,
-    updateProspectFilter,
-    prospects,
-    loadingProspects,
+    
     selectedProspects,
-    toggleProspectSelection,
-    searchProspects,
     searchMode,
     setSearchMode,
 
@@ -109,26 +91,6 @@ export default function ProspectSearch() {
       toast.error("Failed to save prospect list");
     }
   };
-  const handleIndustryChange = (industry: string) => {
-    updateCompanyFilter('industries', industry);
-  };
-
-  const handleEmployeeSizeChange = (size: string) => {
-    updateCompanyFilter('employeeSizes', size);
-  };
-
-  const handleTitleChange = (title: string) => {
-    updateProspectFilter('titles', title);
-  };
-
-  const handleDepartmentChange = (department: string) => {
-    updateProspectFilter('departments', department);
-  };
-
-  const handleSeniorityChange = (seniority: string) => {
-    updateProspectFilter('seniorities', seniority);
-  };
-
 
   return (
     <ErrorBoundary>
@@ -206,36 +168,11 @@ export default function ProspectSearch() {
 
             {/* Main Content */}
             <TabsContent value="companies" className="flex-1 flex flex-col m-0 data-[state=inactive]:hidden">
-              <CompanySearchTab
-                query={companyQuery}
-                onQueryChange={setCompanyQuery}
-                onSearch={searchCompanies}
-                isLoading={loadingCompanies}
-                companies={companies}
-                selectedCompanies={selectedCompanies}
-                onToggleCompanySelection={toggleCompanySelection}
-                filters={companyFilters}
-                onIndustryChange={handleIndustryChange}
-                onEmployeeSizeChange={handleEmployeeSizeChange}
-              />
+              <CompanySearchTab />
             </TabsContent>
 
             <TabsContent value="prospects" className="flex-1 flex flex-col m-0 data-[state=inactive]:hidden">
-              <ProspectSearchTab
-                query={prospectQuery}
-                onQueryChange={setProspectQuery}
-                onSearch={searchProspects}
-                isLoading={loadingProspects}
-                prospects={prospects}
-                selectedProspects={selectedProspects}
-                onToggleProspectSelection={toggleProspectSelection}
-                filters={prospectFilters}
-                onTitleChange={handleTitleChange}
-                onDepartmentChange={handleDepartmentChange}
-                onSeniorityChange={handleSeniorityChange}
-                searchMode={searchMode}
-                selectedCompanies={selectedCompanies}
-              />
+              <ProspectSearchTab />
             </TabsContent>
           </div>
         </Tabs>

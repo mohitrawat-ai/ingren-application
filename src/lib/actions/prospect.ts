@@ -6,15 +6,10 @@ import { auth } from "@/lib/auth";
 import { campaignAudiences, audienceContacts } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-import { faker } from "@faker-js/faker";
 
 import {
-  Company,
-  Contact,
-  CompanyFilters,
-  ProspectFilters,
   SaveProspectListParams
-} from "@/components/prospect/types";
+} from "@/types";
 
 const db = await dbClient();
 
@@ -81,9 +76,9 @@ export async function saveProspectList(data: SaveProspectListParams) {
     await db.insert(audienceContacts).values(
       data.contacts.map(contact => ({
         audienceId: audience.id,
-        name: contact.name,
+        name: contact.firstName,
         title: contact.title,
-        organizationName: contact.organization.name,
+        organizationName: contact.companyName,
         city: contact.city || null,
         state: contact.state || null,
         country: contact.country || null,
@@ -94,8 +89,6 @@ export async function saveProspectList(data: SaveProspectListParams) {
         firstName: contact.firstName || null,
         lastName: contact.lastName || null,
         department: contact.department || null,
-        tenureMonths: contact.tenureMonths || null,
-        notableAchievement: contact.notableAchievement || null,
       }))
     );
   }
@@ -124,141 +117,140 @@ export async function deleteProspectList(id: number) {
   revalidatePath("/prospects");
 }
 
-// Search companies (mock implementation for now)
-export async function searchCompanies(query: string, filters?: CompanyFilters) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+// // Search companies (mock implementation for now)
+// export async function searchCompanies(query: string, filters?: CompanyFilters) {
+//   const session = await auth();
+//   if (!session?.user?.id) {
+//     throw new Error("Unauthorized");
+//   }
 
-  // This would call your API in a real implementation
-  // For now, we'll mock the results
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+//   // This would call your API in a real implementation
+//   // For now, we'll mock the results
+//   await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
 
-  // Generate 10 mock companies
-  const companies: Company[] = [];
-  for (let i = 0; i < 10; i++) {
-    // Apply industry filter if present
-    const industry = faker.helpers.arrayElement([
-      "Technology", "Healthcare", "Finance", "Education", 
-      "Manufacturing", "Retail", "Media", "Government"
-    ]);
+//   // Generate 10 mock companies
+//   const companies: Company[] = [];
+//   for (let i = 0; i < 10; i++) {
+//     // Apply industry filter if present
+//     const industry = faker.helpers.arrayElement([
+//       "Technology", "Healthcare", "Finance", "Education", 
+//       "Manufacturing", "Retail", "Media", "Government"
+//     ]);
     
-    if (filters?.industries && filters.industries.length > 0 && 
-        !filters.industries.includes(industry)) {
-      continue;
-    }
+//     if (filters?.industries && filters.industries.length > 0 && 
+//         !filters.industries.includes(industry)) {
+//       continue;
+//     }
     
-    // Apply employee size filter if present
-    const employeeCount = faker.helpers.arrayElement([
-      "1-10", "11-50", "51-200", "201-500", 
-      "501-1000", "1001-5000", "5001-10000", "10000+"
-    ]);
+//     // Apply employee size filter if present
+//     const employeeCount = faker.helpers.arrayElement([
+//       "1-10", "11-50", "51-200", "201-500", 
+//       "501-1000", "1001-5000", "5001-10000", "10000+"
+//     ]);
     
-    if (filters?.employeeSizes && filters.employeeSizes.length > 0 && 
-        !filters.employeeSizes.includes(employeeCount)) {
-      continue;
-    }
+//     if (filters?.sizes && filters.sizes.length > 0 && 
+//         !filters.sizes.includes(employeeCount)) {
+//       continue;
+//     }
     
-    // Apply name query if present
-    const name = faker.company.name();
-    if (query && !name.toLowerCase().includes(query.toLowerCase())) {
-      continue;
-    }
+//     // Apply name query if present
+//     const name = faker.company.name();
+//     if (query && !name.toLowerCase().includes(query.toLowerCase())) {
+//       continue;
+//     }
     
-    companies.push({
-      id: uuidv4(),
-      name,
-      industry,
-      employeeCount,
-      website_url: faker.internet.url(),
-      linkedin_url: `https://linkedin.com/company/${faker.company.buzzNoun()}`,
-    });
+//     companies.push({
+//       id: uuidv4(),
+//       name,
+//       industry,
+//       size : employeeCount,
+//       domain: faker.internet.url(),
+//     });
     
-    // If we've reached 10 valid companies, stop
-    if (companies.length >= 10) {
-      break;
-    }
-  }
+//     // If we've reached 10 valid companies, stop
+//     if (companies.length >= 10) {
+//       break;
+//     }
+//   }
 
-  return companies;
-}
+//   return companies;
+// }
 
-// Search prospects (mock implementation for now)
-export async function searchProspects(
-  query: string, 
-  filters?: ProspectFilters,
-  companyIds?: string[]
-) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+// TODO : Search prospects (mock implementation for now)
+// export async function searchProspects(
+//   query: string, 
+//   filters?: ProspectFilters,
+//   companyIds?: string[]
+// ) {
+//   const session = await auth();
+//   if (!session?.user?.id) {
+//     throw new Error("Unauthorized");
+//   }
 
-  // This would call your API in a real implementation
-  // For now, we'll mock the results
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+//   // This would call your API in a real implementation
+//   // For now, we'll mock the results
+//   await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
 
-  // Generate 15 mock prospects
-  const prospects: Contact[] = [];
-  for (let i = 0; i < 15; i++) {
-    // Generate company if none specified
-    const organization = companyIds?.length 
-      ? { id: companyIds[Math.floor(Math.random() * companyIds.length)], name: faker.company.name() }
-      : { id: uuidv4(), name: faker.company.name() };
+//   // Generate 15 mock prospects
+//   const prospects: Prospect[] = [];
+//   for (let i = 0; i < 15; i++) {
+//     // Generate company if none specified
+//     const organization = companyIds?.length 
+//       ? { id: companyIds[Math.floor(Math.random() * companyIds.length)], name: faker.company.name() }
+//       : { id: uuidv4(), name: faker.company.name() };
       
-    // Apply title filter if present
-    const title = faker.helpers.arrayElement([
-      "CEO", "CTO", "CFO", "CIO", "VP of Sales", "VP of Marketing",
-      "Director of Engineering", "Product Manager", "Marketing Manager"
-    ]);
+//     // Apply title filter if present
+//     const title = faker.helpers.arrayElement([
+//       "CEO", "CTO", "CFO", "CIO", "VP of Sales", "VP of Marketing",
+//       "Director of Engineering", "Product Manager", "Marketing Manager"
+//     ]);
     
-    if (filters?.titles && filters.titles.length > 0 && 
-        !filters.titles.includes(title)) {
-      continue;
-    }
+//     if (filters?.titles && filters.titles.length > 0 && 
+//         !filters.titles.includes(title)) {
+//       continue;
+//     }
     
-    // Apply department filter if present
-    const department = faker.helpers.arrayElement([
-      "Engineering", "Sales", "Marketing", "Finance", 
-      "Human Resources", "Operations", "Product", "Legal"
-    ]);
+//     // Apply department filter if present
+//     const department = faker.helpers.arrayElement([
+//       "Engineering", "Sales", "Marketing", "Finance", 
+//       "Human Resources", "Operations", "Product", "Legal"
+//     ]);
     
-    if (filters?.departments && filters.departments.length > 0 && 
-        !filters.departments.includes(department)) {
-      continue;
-    }
+//     if (filters?.departments && filters.departments.length > 0 && 
+//         !filters.departments.includes(department)) {
+//       continue;
+//     }
     
-    // Apply name query if present
-    const name = faker.person.fullName();
-    if (query && !name.toLowerCase().includes(query.toLowerCase())) {
-      continue;
-    }
+//     // Apply name query if present
+//     const name = faker.person.fullName();
+//     if (query && !name.toLowerCase().includes(query.toLowerCase())) {
+//       continue;
+//     }
     
-    prospects.push({
-      id: uuidv4(),
-      name,
-      title,
-      department,
-      email: faker.internet.email({
-        firstName: name.split(' ')[0], 
-        lastName: name.split(' ')[1], 
-        provider: 'company.com'
-      }),
-      city: faker.location.city(),
-      state: faker.location.state(),
-      country: faker.location.country(),
-      organization,
-    });
+//     prospects.push({
+//       id: uuidv4(),
+//       firstName: name,
+//       title,
+//       department,
+//       email: faker.internet.email({
+//         firstName: name.split(' ')[0], 
+//         lastName: name.split(' ')[1], 
+//         provider: 'company.com'
+//       }),
+//       city: faker.location.city(),
+//       state: faker.location.state(),
+//       country: faker.location.country(),
+//       organization,
+//     });
     
-    // If we've reached 15 valid prospects, stop
-    if (prospects.length >= 15) {
-      break;
-    }
-  }
+//     // If we've reached 15 valid prospects, stop
+//     if (prospects.length >= 15) {
+//       break;
+//     }
+//   }
 
-  return prospects;
-}
+//   return prospects;
+// }
 
 // Upload and process CSV file
 export async function uploadCSV(file: File) {

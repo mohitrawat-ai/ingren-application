@@ -9,7 +9,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
-import { Company } from "../types";
+import { Company } from "@/types";
 
 interface CompanyCardProps {
   company: Company;
@@ -28,19 +28,19 @@ export function CompanyCard({ company, isSelected, onSelect }: CompanyCardProps)
               {company.industry && (
                 <Badge variant="secondary">{company.industry}</Badge>
               )}
-              {company.employeeCount && (
-                <Badge variant="outline">{company.employeeCount} employees</Badge>
+              {company.size && (
+                <Badge variant="outline">{company.size} employees</Badge>
               )}
             </div>
             
             <div className="flex items-center gap-1 mt-2 text-sm">
-              {company.website_url && (
+              {company.domain && (
                 <Link 
-                  href={company.website_url} 
+                  href={company.domain} 
                   target="_blank" 
                   className="text-blue-600 hover:underline"
                 >
-                  {company.website_url}
+                  {company.domain}
                 </Link>
               )}
             </div>

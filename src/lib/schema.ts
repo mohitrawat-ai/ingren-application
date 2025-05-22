@@ -1,6 +1,9 @@
 import { pgTable, text, integer, serial, timestamp, boolean, primaryKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import * as tables from '@/lib/tables/main';
+
+export * from "@/lib/tables/main";
 
 // Auth Tables
 export const users = pgTable("user", {
@@ -263,3 +266,10 @@ export type SettingType = typeof campaignSettings.$inferSelect;
 export type SendingDayType = typeof campaignSendingDays.$inferSelect;
 export type TargetingType = typeof campaignTargeting.$inferSelect;
 export type PitchType = typeof campaignPitch.$inferSelect;
+
+// NEW TYPE EXPORTS
+export type TargetList = typeof tables.targetLists.$inferSelect;
+export type TargetListCompany = typeof tables.targetListCompanies.$inferSelect;
+export type TargetListContact = typeof tables.targetListContacts.$inferSelect;
+export type CampaignEnrollment = typeof tables.campaignEnrollments.$inferSelect;
+export type CampaignEnrolledContact = typeof tables.campaignEnrolledContacts.$inferSelect;

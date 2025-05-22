@@ -1,4 +1,4 @@
-// src/lib/actions/prospect.ts
+// src/lib/actions/prospectList.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -6,23 +6,32 @@ import { db as dbClient } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { targetLists, targetListContacts } from "@/lib/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
-
-import {
-  Prospect,
-  SaveProspectListParams
-} from "@/types";
+import { Prospect } from "@/types";
 
 const db = await dbClient();
 
-// Get all prospect lists (legacy function for backward compatibility)
+export interface CreateProspectListParams {
+  name: string;
+  description?: string;
+  prospects: Prospect[];
+  sourceCompanyListId?: number; // Reference to company list used for scoping
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateProspectListParams {
+  id: number;
+  name?: string;
+  description?: string;
+  prospects?: Prospect[];
+}
+
+// Get all prospect lists for the current user
 export async function getProspectLists() {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
 
-  // Query for prospect lists
   const lists = await db.query.targetLists.findMany({
     where: and(
       eq(targetLists.userId, session.user.id),
@@ -36,11 +45,11 @@ export async function getProspectLists() {
 
   return lists.map(list => ({
     ...list,
-    totalResults: list.contacts.length,
+    prospectCount: list.contacts.length,
   }));
 }
 
-// Get a prospect list by ID (legacy function for backward compatibility)
+// Get a specific prospect list by ID
 export async function getProspectList(id: number) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -50,6 +59,7 @@ export async function getProspectList(id: number) {
   const list = await db.query.targetLists.findFirst({
     where: and(
       eq(targetLists.id, id),
+      eq(targetLists.userId, session.user.id),
       eq(targetLists.type, 'prospect')
     ),
     with: {
@@ -63,12 +73,12 @@ export async function getProspectList(id: number) {
 
   return {
     ...list,
-    totalResults: list.contacts.length,
+    prospectCount: list.contacts.length,
   };
 }
 
-// Create a new prospect list (legacy function for backward compatibility)
-export async function saveProspectList(data: SaveProspectListParams) {
+// Create a new prospect list
+export async function createProspectList(data: CreateProspectListParams) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
@@ -76,42 +86,44 @@ export async function saveProspectList(data: SaveProspectListParams) {
 
   try {
     return await db.transaction(async (tx) => {
-      // Create prospect list using new target lists system
+      // Create the target list
       const [newList] = await tx
         .insert(targetLists)
         .values({
           userId: session.user!.id || "-1",
           name: data.name,
+          description: data.description,
           type: 'prospect',
+          sourceListId: data.sourceCompanyListId,
           createdBy: session.user!.id,
           sharedWith: data.metadata ? [JSON.stringify(data.metadata)] : [],
         })
         .returning();
 
-      // Insert contacts if available
-      if (data.contacts && data.contacts.length > 0) {
+      // Insert prospects if provided
+      if (data.prospects && data.prospects.length > 0) {
         await tx.insert(targetListContacts).values(
-          data.contacts.map(contact => ({
+          data.prospects.map(prospect => ({
             targetListId: newList.id,
-            apolloProspectId: contact.id || `temp-${Date.now()}`,
-            name: `${contact.firstName} ${contact.lastName}`.trim(),
-            email: contact.email || null,
-            title: contact.title || null,
-            companyName: contact.companyName || null,
-            firstName: contact.firstName || null,
-            lastName: contact.lastName || null,
-            department: contact.department || null,
-            city: contact.city || null,
-            state: contact.state || null,
-            country: contact.country || null,
+            apolloProspectId: prospect.id,
+            name: `${prospect.firstName} ${prospect.lastName}`.trim(),
+            email: prospect.email || null,
+            title: prospect.title || null,
+            companyName: prospect.companyName || null,
+            firstName: prospect.firstName || null,
+            lastName: prospect.lastName || null,
+            department: prospect.department || null,
+            city: prospect.city || null,
+            state: prospect.state || null,
+            country: prospect.country || null,
             additionalData: {
-              ...contact,
+              // Store any additional prospect data
+              ...prospect,
             },
           }))
         );
       }
 
-      revalidatePath("/prospects");
       revalidatePath("/prospect-lists");
       return newList;
     });
@@ -121,7 +133,84 @@ export async function saveProspectList(data: SaveProspectListParams) {
   }
 }
 
-// Delete a prospect list (legacy function for backward compatibility)
+// Update an existing prospect list
+export async function updateProspectList(data: UpdateProspectListParams) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      // Verify ownership
+      const existingList = await tx.query.targetLists.findFirst({
+        where: and(
+          eq(targetLists.id, data.id),
+          eq(targetLists.userId, session.user!.id || "-1"),
+          eq(targetLists.type, 'prospect')
+        ),
+      });
+
+      if (!existingList) {
+        throw new Error("Prospect list not found or unauthorized");
+      }
+
+      // Update the target list
+      const updateData: Partial<typeof targetLists.$inferInsert> = {
+        updatedAt: new Date(),
+      };
+
+      if (data.name) updateData.name = data.name;
+      if (data.description !== undefined) updateData.description = data.description;
+
+      const [updatedList] = await tx
+        .update(targetLists)
+        .set(updateData)
+        .where(eq(targetLists.id, data.id))
+        .returning();
+
+      // Update prospects if provided
+      if (data.prospects) {
+        // Delete existing prospects
+        await tx
+          .delete(targetListContacts)
+          .where(eq(targetListContacts.targetListId, data.id));
+
+        // Insert new prospects
+        if (data.prospects.length > 0) {
+          await tx.insert(targetListContacts).values(
+            data.prospects.map(prospect => ({
+              targetListId: data.id,
+              apolloProspectId: prospect.id,
+              name: `${prospect.firstName} ${prospect.lastName}`.trim(),
+              email: prospect.email || null,
+              title: prospect.title || null,
+              companyName: prospect.companyName || null,
+              firstName: prospect.firstName || null,
+              lastName: prospect.lastName || null,
+              department: prospect.department || null,
+              city: prospect.city || null,
+              state: prospect.state || null,
+              country: prospect.country || null,
+              additionalData: {
+                ...prospect,
+              },
+            }))
+          );
+        }
+      }
+
+      revalidatePath("/prospect-lists");
+      revalidatePath(`/prospect-lists/${data.id}`);
+      return updatedList;
+    });
+  } catch (error) {
+    console.error("Error updating prospect list:", error);
+    throw new Error("Failed to update prospect list");
+  }
+}
+
+// Delete a prospect list
 export async function deleteProspectList(id: number) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -129,39 +218,36 @@ export async function deleteProspectList(id: number) {
   }
 
   try {
-    await db.transaction(async (tx) => {
-      // Verify ownership and check if list is used in campaigns
-      const list = await tx.query.targetLists.findFirst({
-        where: and(
-          eq(targetLists.id, id),
-          eq(targetLists.userId, session.user!.id || "-1"),
-          eq(targetLists.type, 'prospect')
-        ),
-        with: {
-          enrollments: true,
-        },
-      });
-
-      if (!list) {
-        throw new Error("Prospect list not found");
-      }
-
-      if (list.usedInCampaigns || list.enrollments.length > 0) {
-        throw new Error("Cannot delete prospect list that is used in campaigns");
-      }
-
-      // Delete contacts first (due to foreign key constraints)
-      await tx
-        .delete(targetListContacts)
-        .where(eq(targetListContacts.targetListId, id));
-
-      // Then delete the list itself
-      await tx
-        .delete(targetLists)
-        .where(eq(targetLists.id, id));
+    // Check if list is used in campaigns
+    const list = await db.query.targetLists.findFirst({
+      where: and(
+        eq(targetLists.id, id),
+        eq(targetLists.userId, session.user.id),
+        eq(targetLists.type, 'prospect')
+      ),
+      with: {
+        enrollments: true,
+      },
     });
 
-    revalidatePath("/prospects");
+    if (!list) {
+      throw new Error("Prospect list not found");
+    }
+
+    if (list.usedInCampaigns || list.enrollments.length > 0) {
+      throw new Error("Cannot delete prospect list that is used in campaigns");
+    }
+
+    // Delete prospects first (due to foreign key constraints)
+    await db
+      .delete(targetListContacts)
+      .where(eq(targetListContacts.targetListId, id));
+
+    // Delete the list
+    await db
+      .delete(targetLists)
+      .where(eq(targetLists.id, id));
+
     revalidatePath("/prospect-lists");
   } catch (error) {
     console.error("Error deleting prospect list:", error);
@@ -182,7 +268,7 @@ export async function addProspectsToList(listId: number, prospects: Prospect[]) 
       const existingList = await tx.query.targetLists.findFirst({
         where: and(
           eq(targetLists.id, listId),
-          eq(targetLists.userId, session.user!.id || "0"),
+          eq(targetLists.userId, session.user!.id || "-1"),
           eq(targetLists.type, 'prospect')
         ),
       });
@@ -232,7 +318,6 @@ export async function addProspectsToList(listId: number, prospects: Prospect[]) 
         .set({ updatedAt: new Date() })
         .where(eq(targetLists.id, listId));
 
-      revalidatePath("/prospects");
       revalidatePath("/prospect-lists");
       revalidatePath(`/prospect-lists/${listId}`);
       
@@ -269,7 +354,8 @@ export async function removeProspectsFromList(listId: number, prospectIds: strin
         throw new Error("Prospect list not found or unauthorized");
       }
 
-      // Remove prospects
+      // Remove prospects - this would need to be implemented based on your SQL builder's capabilities
+      // For now, we'll use a simpler approach
       for (const prospectId of prospectIds) {
         await tx
           .delete(targetListContacts)
@@ -285,7 +371,6 @@ export async function removeProspectsFromList(listId: number, prospectIds: strin
         .set({ updatedAt: new Date() })
         .where(eq(targetLists.id, listId));
 
-      revalidatePath("/prospects");
       revalidatePath("/prospect-lists");
       revalidatePath(`/prospect-lists/${listId}`);
     });
@@ -295,39 +380,7 @@ export async function removeProspectsFromList(listId: number, prospectIds: strin
   }
 }
 
-// Upload and process CSV file
-export async function uploadCSV(file: File) {
-  // In a real implementation, this would upload the file to a storage service
-  // and return a file ID or path
-  console.log(`Uploading file ${file.name}`);
-  
-  // For now, we'll just simulate the operation
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate upload delay
-
-  // Generate a mock file name
-  const fileName = `${uuidv4()}.csv`;
-  
-  return { fileName };
-}
-
-// Process uploaded CSV
-export async function processCSV(fileName: string, listName: string) {
-  // In a real implementation, this would process the uploaded CSV file,
-  // validate its contents, and create a prospect list
-  console.log(`Processing file ${fileName} for list ${listName}`);
-  
-  // For now, we'll just simulate the operation
-  await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate processing delay
-  
-  // Return success response
-  // In a real scenario, you might return validation issues if they exist
-  return {
-    listId: 1, // Mock ID - in real implementation, this would be the actual list ID
-    validationIssues: [] // No issues
-  };
-}
-
-// Get prospect lists for campaign targeting
+// Get prospect lists that can be used for campaign targeting
 export async function getProspectListsForCampaigns() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -372,11 +425,9 @@ export async function markProspectListAsUsedInCampaigns(listId: number) {
     })
     .where(and(
       eq(targetLists.id, listId),
-      eq(targetLists.userId, session.user.id),
-      eq(targetLists.type, 'prospect')
+      eq(targetLists.userId, session.user.id)
     ));
 
-  revalidatePath("/prospects");
   revalidatePath("/prospect-lists");
   revalidatePath(`/prospect-lists/${listId}`);
 }

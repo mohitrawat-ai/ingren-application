@@ -23,7 +23,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,14 +139,14 @@ export default function ProspectsPage() {
                           {list.name}
                         </Link>
                       </TableCell>
-                      <TableCell>{list.totalResults}</TableCell>
+                      {/* <TableCell>{list.totalResults}</TableCell>
                       <TableCell>
                         {list.csvFileName ? (
                           <Badge variant="outline">CSV Import</Badge>
                         ) : (
                           <Badge variant="outline">API Search</Badge>
                         )}
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell>
                         {new Date(list.createdAt).toLocaleDateString()}
                       </TableCell>

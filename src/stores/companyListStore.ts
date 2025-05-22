@@ -1,111 +1,107 @@
-// src/stores/prospectListStore.ts
+// src/stores/companyListStore.ts
 import { create } from 'zustand';
 import { 
-  getProspectLists, 
-  getProspectList, 
-  createProspectList,
-  updateProspectList,
-  deleteProspectList,
-  addProspectsToList,
-  removeProspectsFromList,
-  getProspectListsForCampaigns
-} from '@/lib/actions/prospectList';
-import { TargetList, TargetListContact } from '@/lib/schema';
-import { Prospect } from '@/types';
+  getCompanyLists, 
+  getCompanyList, 
+  createCompanyList,
+  updateCompanyList,
+  deleteCompanyList,
+  addCompaniesToList,
+  removeCompaniesFromList,
+  getCompanyListsForScoping
+} from '@/lib/actions/companyList';
+import { TargetList, TargetListCompany } from '@/lib/schema';
+import { Company } from '@/types';
 
-interface ProspectListWithContacts extends TargetList {
-  contacts: TargetListContact[];
-  prospectCount: number;
+interface CompanyListWithCompanies extends TargetList {
+  companies: TargetListCompany[];
+  companyCount: number;
 }
 
-interface ProspectListState {
+interface CompanyListState {
   // List data
-  lists: ProspectListWithContacts[];
-  currentList: ProspectListWithContacts | null;
-  campaignLists: Array<{
+  lists: CompanyListWithCompanies[];
+  currentList: CompanyListWithCompanies | null;
+  scopingLists: Array<{
     id: number;
     name: string;
     description: string | null;
-    prospectCount: number;
+    companyCount: number;
     createdAt: Date;
-    usedInCampaigns: boolean;
-    campaignCount: number;
   }>;
   
   // UI state
   loadingLists: boolean;
   loadingCurrentList: boolean;
-  loadingCampaignLists: boolean;
+  loadingScopingLists: boolean;
   creating: boolean;
   updating: boolean;
   deleting: boolean;
   
   // Form state
-  selectedProspects: Prospect[];
+  selectedCompanies: Company[];
   
   // Actions - Data loading
   fetchLists: () => Promise<void>;
   fetchList: (id: number) => Promise<void>;
-  fetchCampaignLists: () => Promise<void>;
+  fetchScopingLists: () => Promise<void>;
   
   // Actions - CRUD operations
   createList: (data: {
     name: string;
     description?: string;
-    prospects: Prospect[];
-    sourceCompanyListId?: number;
-    metadata?: Record<string, unknown>;
+    companies: Company[];
   }) => Promise<TargetList>;
   
   updateList: (data: {
     id: number;
     name?: string;
     description?: string;
-    prospects?: Prospect[];
+    companies?: Company[];
   }) => Promise<void>;
   
   deleteList: (id: number) => Promise<void>;
   
-  // Actions - Prospect management
-  addProspects: (listId: number, prospects: Prospect[]) => Promise<{
+  // Actions - Company management
+  addCompanies: (listId: number, companies: Company[]) => Promise<{
     added: number;
     skipped: number;
   }>;
   
-  removeProspects: (listId: number, prospectIds: string[]) => Promise<void>;
+  removeCompanies: (listId: number, companyIds: string[]) => Promise<void>;
   
   // Actions - Selection management
-  setSelectedProspects: (prospects: Prospect[]) => void;
-  addSelectedProspect: (prospect: Prospect) => void;
-  removeSelectedProspect: (prospectId: string) => void;
-  clearSelectedProspects: () => void;
+  setSelectedCompanies: (companies: Company[]) => void;
+  addSelectedCompany: (company: Company) => void;
+  removeSelectedCompany: (companyId: string) => void;
+  clearSelectedCompanies: () => void;
   
   // Actions - UI state
   resetState: () => void;
 }
 
-export const useProspectListStore = create<ProspectListState>((set, get) => ({
+export const useCompanyListStore = create<CompanyListState>((set, get) => ({
   // Initial state
   lists: [],
   currentList: null,
-  campaignLists: [],
+  scopingLists: [],
   loadingLists: false,
   loadingCurrentList: false,
-  loadingCampaignLists: false,
+  loadingScopingLists: false,
   creating: false,
   updating: false,
   deleting: false,
-  selectedProspects: [],
+  selectedCompanies: [],
   
   // Actions - Data loading
   fetchLists: async () => {
     set({ loadingLists: true });
     try {
-      const lists = await getProspectLists();
+      const lists = await getCompanyLists();
       set({ lists, loadingLists: false });
     } catch (error) {
       set({ loadingLists: false });
-      console.error('Error fetching prospect lists:', error);
+      console.error('Error fetching company lists:', error);
       throw error;
     }
   },
@@ -113,23 +109,23 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
   fetchList: async (id) => {
     set({ loadingCurrentList: true });
     try {
-      const list = await getProspectList(id);
+      const list = await getCompanyList(id);
       set({ currentList: list, loadingCurrentList: false });
     } catch (error) {
       set({ loadingCurrentList: false });
-      console.error('Error fetching prospect list:', error);
+      console.error('Error fetching company list:', error);
       throw error;
     }
   },
   
-  fetchCampaignLists: async () => {
-    set({ loadingCampaignLists: true });
+  fetchScopingLists: async () => {
+    set({ loadingScopingLists: true });
     try {
-      const campaignLists = await getProspectListsForCampaigns();
-      set({ campaignLists, loadingCampaignLists: false });
+      const scopingLists = await getCompanyListsForScoping();
+      set({ scopingLists, loadingScopingLists: false });
     } catch (error) {
-      set({ loadingCampaignLists: false });
-      console.error('Error fetching campaign lists:', error);
+      set({ loadingScopingLists: false });
+      console.error('Error fetching scoping lists:', error);
       throw error;
     }
   },
@@ -138,7 +134,7 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
   createList: async (data) => {
     set({ creating: true });
     try {
-      const newList = await createProspectList(data);
+      const newList = await createCompanyList(data);
       
       // Refresh lists
       await get().fetchLists();
@@ -147,7 +143,7 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
       return newList;
     } catch (error) {
       set({ creating: false });
-      console.error('Error creating prospect list:', error);
+      console.error('Error creating company list:', error);
       throw error;
     }
   },
@@ -155,7 +151,7 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
   updateList: async (data) => {
     set({ updating: true });
     try {
-      await updateProspectList(data);
+      await updateCompanyList(data);
       
       // Refresh current list if it's the one being updated
       if (get().currentList?.id === data.id) {
@@ -168,7 +164,7 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
       set({ updating: false });
     } catch (error) {
       set({ updating: false });
-      console.error('Error updating prospect list:', error);
+      console.error('Error updating company list:', error);
       throw error;
     }
   },
@@ -176,7 +172,7 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
   deleteList: async (id) => {
     set({ deleting: true });
     try {
-      await deleteProspectList(id);
+      await deleteCompanyList(id);
       
       // Clear current list if it's the one being deleted
       if (get().currentList?.id === id) {
@@ -190,15 +186,15 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
       set({ deleting: false });
     } catch (error) {
       set({ deleting: false });
-      console.error('Error deleting prospect list:', error);
+      console.error('Error deleting company list:', error);
       throw error;
     }
   },
   
-  // Actions - Prospect management
-  addProspects: async (listId, prospects) => {
+  // Actions - Company management
+  addCompanies: async (listId, companies) => {
     try {
-      const result = await addProspectsToList(listId, prospects);
+      const result = await addCompaniesToList(listId, companies);
       
       // Refresh current list if it's the one being updated
       if (get().currentList?.id === listId) {
@@ -210,14 +206,14 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
       
       return result;
     } catch (error) {
-      console.error('Error adding prospects to list:', error);
+      console.error('Error adding companies to list:', error);
       throw error;
     }
   },
   
-  removeProspects: async (listId, prospectIds) => {
+  removeCompanies: async (listId, companyIds) => {
     try {
-      await removeProspectsFromList(listId, prospectIds);
+      await removeCompaniesFromList(listId, companyIds);
       
       // Refresh current list if it's the one being updated
       if (get().currentList?.id === listId) {
@@ -227,43 +223,43 @@ export const useProspectListStore = create<ProspectListState>((set, get) => ({
       // Refresh lists
       await get().fetchLists();
     } catch (error) {
-      console.error('Error removing prospects from list:', error);
+      console.error('Error removing companies from list:', error);
       throw error;
     }
   },
   
   // Actions - Selection management
-  setSelectedProspects: (prospects) => set({ selectedProspects: prospects }),
+  setSelectedCompanies: (companies) => set({ selectedCompanies: companies }),
   
-  addSelectedProspect: (prospect) => {
-    const { selectedProspects } = get();
-    const exists = selectedProspects.some(p => p.id === prospect.id);
+  addSelectedCompany: (company) => {
+    const { selectedCompanies } = get();
+    const exists = selectedCompanies.some(c => c.id === company.id);
     
     if (!exists) {
-      set({ selectedProspects: [...selectedProspects, prospect] });
+      set({ selectedCompanies: [...selectedCompanies, company] });
     }
   },
   
-  removeSelectedProspect: (prospectId) => {
-    const { selectedProspects } = get();
+  removeSelectedCompany: (companyId) => {
+    const { selectedCompanies } = get();
     set({ 
-      selectedProspects: selectedProspects.filter(p => p.id !== prospectId) 
+      selectedCompanies: selectedCompanies.filter(c => c.id !== companyId) 
     });
   },
   
-  clearSelectedProspects: () => set({ selectedProspects: [] }),
+  clearSelectedCompanies: () => set({ selectedCompanies: [] }),
   
   // Actions - UI state
   resetState: () => set({
     lists: [],
     currentList: null,
-    campaignLists: [],
+    scopingLists: [],
     loadingLists: false,
     loadingCurrentList: false,
-    loadingCampaignLists: false,
+    loadingScopingLists: false,
     creating: false,
     updating: false,
     deleting: false,
-    selectedProspects: [],
+    selectedCompanies: [],
   }),
 }));

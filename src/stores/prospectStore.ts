@@ -27,7 +27,11 @@ interface ProspectSearchState {
   selectedProspects: Prospect[];
   loadingProspects: boolean;
   prospectPagination: PaginationInfo | null;
-  searchMode: 'all' | 'selection';
+  searchMode: 'all' | 'selection' | 'list';
+  
+  // Company List scoping
+  selectedCompanyListId: number | null;
+  selectedCompanyListName: string | null;
   
   // List management state
   newListName: string;
@@ -49,7 +53,11 @@ interface ProspectSearchState {
   searchProspects: (page?: number) => Promise<void>;
   toggleProspectSelection: (prospect: Prospect) => void;
   clearProspectSelections: () => void;
-  setSearchMode: (mode: 'all' | 'selection') => void;
+  setSearchMode: (mode: 'all' | 'selection' | 'list') => void;
+  
+  // Actions - Company List scoping
+  setCompanyListScope: (listId: number | null, listName?: string) => void;
+  clearCompanyListScope: () => void;
   
   // Actions - List management
   setNewListName: (name: string) => void;
@@ -86,6 +94,10 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       loadingProspects: false,
       prospectPagination: null,
       searchMode: 'all',
+      
+      // Initial state - Company List scoping
+      selectedCompanyListId: null,
+      selectedCompanyListName: null,
       
       // Initial state - List management
       newListName: '',
@@ -181,14 +193,26 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       },
       
       searchProspects: async (page = 1) => {
-        const { prospectQuery, prospectFilters, selectedCompanies, searchMode } = get();
+        const { 
+          prospectQuery, 
+          prospectFilters, 
+          selectedCompanies, 
+          searchMode,
+          selectedCompanyListId 
+        } = get();
         
         set({ loadingProspects: true });
         try {
-          // Determine company scope based on selection mode
-          const companyScope = searchMode === 'selection' 
-            ? selectedCompanies.map(c => c.id) 
-            : undefined;
+          // Determine company scope based on search mode
+          let companyScope: string[] | undefined;
+          
+          if (searchMode === 'selection') {
+            companyScope = selectedCompanies.map(c => c.id);
+          } else if (searchMode === 'list' && selectedCompanyListId) {
+            // TODO: Get company IDs from the selected company list
+            // This would require calling the company list store or API
+            companyScope = []; // Placeholder - implement when company list integration is ready
+          }
           
           // Convert to provider API format
           const providerFilters: ProviderProspectFilters = {
@@ -229,7 +253,31 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       
       clearProspectSelections: () => set({ selectedProspects: [] }),
       
-      setSearchMode: (mode) => set({ searchMode: mode }),
+      setSearchMode: (mode) => {
+        set({ searchMode: mode });
+        
+        // If switching away from list mode, clear company list scope
+        if (mode !== 'list') {
+          set({ selectedCompanyListId: null, selectedCompanyListName: null });
+        }
+      },
+      
+      // Actions - Company List scoping
+      setCompanyListScope: (listId, listName) => {
+        set({ 
+          selectedCompanyListId: listId,
+          selectedCompanyListName: listName || null,
+          searchMode: listId ? 'list' : 'all'
+        });
+      },
+      
+      clearCompanyListScope: () => {
+        set({ 
+          selectedCompanyListId: null,
+          selectedCompanyListName: null,
+          searchMode: 'all'
+        });
+      },
       
       // Actions - List management
       setNewListName: (name) => set({ newListName: name }),
@@ -288,6 +336,8 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         selectedProspects: [],
         prospectPagination: null,
         searchMode: 'all',
+        selectedCompanyListId: null,
+        selectedCompanyListName: null,
         newListName: '',
         activeTab: 'companies',
       }),
@@ -300,6 +350,8 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         prospectFilters: state.prospectFilters,
         activeTab: state.activeTab,
         searchMode: state.searchMode,
+        selectedCompanyListId: state.selectedCompanyListId,
+        selectedCompanyListName: state.selectedCompanyListName,
       }),
     }
   )

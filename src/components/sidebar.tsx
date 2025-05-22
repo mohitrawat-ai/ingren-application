@@ -15,6 +15,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Building,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -60,8 +62,20 @@ export function Sidebar() {
       color: "text-pink-700",
     },
     {
-      label: "Prospects",
+      label: "Company Lists",
+      icon: Building,
+      href: "/company-lists",
+      color: "text-blue-500",
+    },
+    {
+      label: "Prospect Lists",
       icon: Users,
+      href: "/prospect-lists",
+      color: "text-orange-500",
+    },
+    {
+      label: "Prospects",
+      icon: User,
       href: "/prospects",
       color: "text-orange-500",
     },

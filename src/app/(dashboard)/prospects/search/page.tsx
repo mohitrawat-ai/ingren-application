@@ -1,6 +1,7 @@
+// src/app/(dashboard)/prospects/search/page.tsx - Updated to use shadcn DataTable
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -9,6 +10,8 @@ import {
   Building,
   User,
   Save,
+  Filter,
+  Search,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -26,20 +29,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
-// Import our prospect-specific components
+// Import our components
 import { CompanyFiltersPanel } from "@/components/prospect/search/CompanyFiltersPanel";
 import { ProspectFiltersPanel } from "@/components/prospect/search/ProspectFiltersPanel";
-import { CompanySearchTab } from "@/components/prospect/search/CompanySearchTab";
-import { ProspectSearchTab } from "@/components/prospect/search/ProspectSearchTab";
+import { CompanyDataTable } from "@/components/prospect/search/CompanyDataTable";
+import { ProspectDataTable } from "@/components/prospect/search/ProspectDataTable";
 import { SaveListDialog } from "@/components/prospect/search/SaveListDialog";
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
 // Import our store
 import { useProspectSearchStore } from "@/stores/prospectStore";
 
-export default function ProspectSearch() {
+export default function ProspectSearchPage() {
   const router = useRouter();
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Get state and actions from our store
   const {
@@ -47,11 +62,25 @@ export default function ProspectSearch() {
     activeTab,
     setActiveTab,
 
+    // Search state
+    companyQuery,
+    setCompanyQuery,
+    prospectQuery,
+    setProspectQuery,
+    searchCompanies,
+    searchProspects,
+    loadingCompanies,
+    loadingProspects,
+
+    // Selection state
     selectedCompanies,
-    
     selectedProspects,
     searchMode,
     setSearchMode,
+
+    // Filters
+    companyFilters,
+    prospectFilters,
 
     // List state & actions
     newListName,
@@ -60,13 +89,26 @@ export default function ProspectSearch() {
     saveAsList,
   } = useProspectSearchStore();
 
-
   // Auto-switch to selection mode if we have selected companies
   useEffect(() => {
     if (activeTab === "prospects" && selectedCompanies.length > 0) {
       setSearchMode("selection");
     }
   }, [activeTab, selectedCompanies.length, setSearchMode]);
+
+  const handleSearch = async () => {
+    if (activeTab === "companies") {
+      await searchCompanies(1);
+    } else {
+      await searchProspects(1);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   const handleSaveList = async () => {
     if (!newListName.trim()) {
@@ -84,6 +126,7 @@ export default function ProspectSearch() {
 
       if (newListId) {
         toast.success("Prospect list created successfully");
+        setSaveDialogOpen(false);
         router.push(`/prospects/${newListId}`);
       }
     } catch (error) {
@@ -92,42 +135,124 @@ export default function ProspectSearch() {
     }
   };
 
+  const getActiveFiltersCount = () => {
+    if (activeTab === "companies") {
+      return companyFilters.industries.length + companyFilters.sizes.length;
+    } else {
+      return prospectFilters.titles.length + prospectFilters.departments.length + prospectFilters.seniorities.length;
+    }
+  };
+
   return (
     <ErrorBoundary>
       <div className="flex flex-col h-[calc(100vh-6rem)]">
-        <div className="flex items-center justify-between mb-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/prospects">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <h1 className="text-2xl font-bold">Find Prospects</h1>
+            <h1 className="text-3xl font-bold">Find Prospects</h1>
           </div>
-          {activeTab === "prospects" && selectedProspects.length > 0 && (
-            <Button onClick={() => {
-              const listDialog = document.getElementById("save-list-dialog");
-              if (listDialog) {
-                // TODO : Trigger the dialog - in actual implementation you'd use a state
-                // or a ref to control the dialog
-              }
-            }}>
-              <Save className="mr-2 h-4 w-4" />
-              Save List ({selectedProspects.length})
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {activeTab === "prospects" && selectedProspects.length > 0 && (
+              <Button onClick={() => setSaveDialogOpen(true)}>
+                <Save className="mr-2 h-4 w-4" />
+                Save List ({selectedProspects.length})
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Search and Filter Bar */}
+        <div className="flex items-center gap-4 mb-6 p-4 border rounded-lg bg-muted/30">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={activeTab === "companies" ? "Search companies..." : "Search prospects..."}
+              value={activeTab === "companies" ? companyQuery : prospectQuery}
+              onChange={(e) => {
+                if (activeTab === "companies") {
+                  setCompanyQuery(e.target.value);
+                } else {
+                  setProspectQuery(e.target.value);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              className="pl-9"
+            />
+          </div>
+          
+          <Button 
+            onClick={handleSearch} 
+            disabled={loadingCompanies || loadingProspects}
+            size="lg"
+          >
+            {(loadingCompanies || loadingProspects) ? "Searching..." : "Search"}
+          </Button>
+          
+          {/* Mobile Filters */}
+          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="lg:hidden">
+                <Filter className="mr-2 h-4 w-4" />
+                Filters
+                {getActiveFiltersCount() > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {getActiveFiltersCount()}
+                  </Badge>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-80">
+              <SheetHeader>
+                <SheetTitle>Filters</SheetTitle>
+                <SheetDescription>
+                  Refine your search with filters
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6">
+                {activeTab === "companies" ? (
+                  <CompanyFiltersPanel />
+                ) : (
+                  <ProspectFiltersPanel />
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+          
+          {/* Desktop Filters Indicator */}
+          <div className="hidden lg:flex items-center gap-2">
+            {getActiveFiltersCount() > 0 && (
+              <Badge variant="outline">
+                {getActiveFiltersCount()} filters active
+              </Badge>
+            )}
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'companies' | 'prospects')} className="flex-1 flex flex-col">
           <div className="flex justify-between items-center mb-4">
-            <TabsList>
+            <TabsList className="grid w-[400px] grid-cols-2">
               <TabsTrigger value="companies" className="flex items-center">
                 <Building className="mr-2 h-4 w-4" />
                 Companies
+                {selectedCompanies.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {selectedCompanies.length}
+                  </Badge>
+                )}
               </TabsTrigger>
               <TabsTrigger value="prospects" className="flex items-center">
                 <User className="mr-2 h-4 w-4" />
                 Prospects
+                {selectedProspects.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {selectedProspects.length}
+                  </Badge>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -150,12 +275,20 @@ export default function ProspectSearch() {
             )}
           </div>
 
-          <div className="flex flex-1 border rounded-md overflow-hidden">
-            {/* Filters Sidebar */}
-            <div className="w-64 border-r bg-muted/30">
+          <div className="flex flex-1 overflow-hidden border rounded-lg">
+            {/* Desktop Filters Sidebar */}
+            <div className="hidden lg:block w-72 border-r bg-muted/30">
               <ScrollArea className="h-full">
                 <div className="p-4">
-                  <h3 className="font-medium mb-2">Filters</h3>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Filter className="h-4 w-4" />
+                    <h3 className="font-semibold">Filters</h3>
+                    {getActiveFiltersCount() > 0 && (
+                      <Badge variant="secondary">
+                        {getActiveFiltersCount()}
+                      </Badge>
+                    )}
+                  </div>
 
                   {activeTab === "companies" ? (
                     <CompanyFiltersPanel />
@@ -167,24 +300,25 @@ export default function ProspectSearch() {
             </div>
 
             {/* Main Content */}
-            <TabsContent value="companies" className="flex-1 flex flex-col m-0 data-[state=inactive]:hidden">
-              <CompanySearchTab />
-            </TabsContent>
+            <div className="flex-1 overflow-hidden">
+              <TabsContent value="companies" className="h-full m-0 data-[state=inactive]:hidden">
+                <div className="h-full overflow-auto">
+                  <CompanyDataTable />
+                </div>
+              </TabsContent>
 
-            <TabsContent value="prospects" className="flex-1 flex flex-col m-0 data-[state=inactive]:hidden">
-              <ProspectSearchTab />
-            </TabsContent>
+              <TabsContent value="prospects" className="h-full m-0 data-[state=inactive]:hidden">
+                <div className="h-full overflow-auto">
+                  <ProspectDataTable />
+                </div>
+              </TabsContent>
+            </div>
           </div>
         </Tabs>
 
         <SaveListDialog
-          open={savingList}
-          onOpenChange={(open) => {
-            if (!open) {
-              // TODO : Clear saving state if dialog is closed
-              // In a real implementation, you might want to handle this in the store
-            }
-          }}
+          open={saveDialogOpen}
+          onOpenChange={setSaveDialogOpen}
           listName={newListName}
           onListNameChange={setNewListName}
           onSave={handleSaveList}

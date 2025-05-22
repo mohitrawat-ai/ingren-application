@@ -1,4 +1,4 @@
-export type SettingsFormData = {
+export type SettingsFormDataOld = {
   emailSettings: {
     fromName: string;
     fromEmail: string;

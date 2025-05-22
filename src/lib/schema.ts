@@ -52,6 +52,7 @@ export const campaigns = pgTable('campaigns', {
   status: text('status').notNull().default('draft'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  description: text('description'),
 });
 
 // Campaign Settings
@@ -68,6 +69,7 @@ export const campaignSettings = pgTable('campaign_settings', {
   unsubscribeLink: boolean('unsubscribe_link').notNull().default(true),
   sendingStartTime: text('sending_start_time').notNull(),
   sendingEndTime: text('sending_end_time').notNull(),
+  startDate: timestamp('start_date').notNull().defaultNow(),
 });
 
 // Sending Days
@@ -230,6 +232,7 @@ export const campaignRelations = relations(campaigns, ({ one, many }) => ({
   }),
   ctaOptions: many(ctaOptions),
   personalizationSources: many(personalizationSources),
+  enrollments: many(tables.campaignEnrollments),
 }));
 
 export const audienceRelations = relations(campaignAudiences, ({ one, many }) => ({
@@ -266,6 +269,7 @@ export type SettingType = typeof campaignSettings.$inferSelect;
 export type SendingDayType = typeof campaignSendingDays.$inferSelect;
 export type TargetingType = typeof campaignTargeting.$inferSelect;
 export type PitchType = typeof campaignPitch.$inferSelect;
+export type CampaignSettingsType = typeof campaignSettings.$inferSelect;
 
 // NEW TYPE EXPORTS
 export type TargetList = typeof tables.targetLists.$inferSelect;

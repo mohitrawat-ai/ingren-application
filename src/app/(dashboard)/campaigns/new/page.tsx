@@ -2,9 +2,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ArrowLeft } from "lucide-react";
 
 import {
   Card,
@@ -13,68 +13,78 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 import { TargetingForm } from "@/components/campaign/targeting-form";
-import { PitchForm } from "@/components/campaign/pitch-form";
-import { OutreachForm } from "@/components/campaign/outreach-form";
-import { WorkflowForm } from "@/components/campaign/workflow-form";
-import { SettingsForm } from "@/components/campaign/settings-form";
-import { createCampaign, saveOutreach, savePitch, saveSettings } from "@/lib/actions/campaign";
+import { CampaignSettingsStep } from "@/components/campaign/settings/CampaignSettingsStep";
+import { CampaignReviewStep } from "@/components/campaign/review/CampaignReviewStep";
+
+import { createCampaign, saveSettings } from "@/lib/actions/campaign";
 import { createAudience } from "@/lib/actions/audience";
+import { markProspectListAsUsedInCampaigns } from "@/lib/actions/prospect";
 import { cn } from "@/lib/utils";
 
-import { SettingsFormData } from "@/types";
-import { TargetingFormData } from "@/types";
-import { PitchFormData } from "@/types";
-import { OutreachFormData } from "@/types";
-import { WorkflowFormData } from "@/types";
+import { TargetingFormData, SettingsFormData } from "@/types";
 
-const steps = [
-  { id: 0, label: "Targeting", description: "Define your target audience" },
-  { id: 1, label: "Pitch", description: "Create your company pitch" },
-  { id: 2, label: "Outreach", description: "Configure message content" },
-  { id: 3, label: "Workflow", description: "Set up follow-up sequence" },
-  { id: 4, label: "Settings", description: "Finalize campaign settings" },
+type Step = 'targeting' | 'settings' | 'review';
+
+interface CampaignFormData {
+  targeting: TargetingFormData | null;
+  settings: SettingsFormData | null;
+}
+
+const steps: { key: Step; title: string; description: string }[] = [
+  {
+    key: 'targeting',
+    title: 'Target Audience',
+    description: 'Choose your prospects',
+  },
+  {
+    key: 'settings',
+    title: 'Campaign Settings',
+    description: 'Configure your campaign',
+  },
+  {
+    key: 'review',
+    title: 'Review & Launch',
+    description: 'Review and create campaign',
+  },
 ];
 
 export default function NewCampaignPage() {
-  const [activeStep, setActiveStep] = useState(0);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const [currentStep, setCurrentStep] = useState<Step>('targeting');
   const [campaignId, setCampaignId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter();
+  
+  // Form data for each step
+  const [formData, setFormData] = useState<CampaignFormData>({
+    targeting: null,
+    settings: null,
+  });
 
-  // Default values for each form
+  // Get current step index
+  const currentStepIndex = steps.findIndex(step => step.key === currentStep);
+
+  // Default targeting data
   const defaultTargetingData: TargetingFormData = {
     organizations: [],
     jobTitles: [],
     contacts: [],
   };
 
-  const defaultPitchData: PitchFormData = {
-    url: "",
-    description: "",
-    features: [
-      { problem: "", solution: "", id: 1 }
-    ],
-  };
-
-  const defaultWorkflowData: WorkflowFormData = {
-    enableFollowUp: false,
-    followUpConfig: {
-      waitDays: 3,
-      emailSubject: "",
-      emailBody: "",
-    },
-  };
-
+  // Default settings data
   const defaultSettingsData: SettingsFormData = {
+    name: "",
+    description: "",
     emailSettings: {
       fromName: "",
       fromEmail: "",
       emailService: "",
     },
     campaignSettings: {
-      name: "",
       timezone: "UTC",
       trackOpens: true,
       trackClicks: true,
@@ -96,128 +106,192 @@ export default function NewCampaignPage() {
     },
   };
 
-  // Form data state for each step with proper typing
-  const [formData, setFormData] = useState<{
-    targeting: TargetingFormData | null;
-    pitch: PitchFormData | null;
-    outreach: OutreachFormData | null;
-    workflow: WorkflowFormData | null;
-    settings: SettingsFormData | null;
-  }>({
-    targeting: null,
-    pitch: null,
-    outreach: null,
-    workflow: null,
-    settings: null,
-  });
-
-  const handleStepSubmit = async (step: string, data: unknown) => {
-    // Update form data for the current step
-    setFormData({
-      ...formData,
-      [step]: data,
-    });
-
-    // If this is the first step, create the campaign
-    if (step === "targeting" && !campaignId) {
-      setIsSubmitting(true);
-      try {
-        const campaign = await createCampaign("New Campaign");
-        setCampaignId(campaign.id);
-        
-        // Create audience with properly typed data
-        const targetingData = data as TargetingFormData;
-        await createAudience({
-          campaignId: campaign.id,
-          name: `Audience ${new Date().toLocaleDateString()}`,
-          contacts: targetingData.contacts,
-          organizations: targetingData.organizations,
-          jobTitles: targetingData.jobTitles,
-          totalResults: targetingData.totalResults || targetingData.contacts.length,
-          csvFileName: targetingData.csvFileName
-        });
-        
-        toast.success("Audience created successfully");
-      } catch (error) {
-        console.error("Error creating campaign and audience:", error);
-        toast.error("Failed to create campaign and audience");
-        return;
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-
-    // Save step data for other steps
-    if (campaignId && step !== "targeting") {
-      setIsSubmitting(true);
-      try {
-        // Call appropriate API to save step data based on the current step
-        switch (step) {
-          case "pitch":
-            const pitchData = data as PitchFormData;
-            await savePitch(campaignId, pitchData);
-            toast.success("Pitch data saved successfully");
-            break;
-          case "outreach":
-            // Assuming there would be a saveOutreach function
-            const outreachData = data as OutreachFormData
-            await saveOutreach(campaignId, outreachData);
-            toast.success("Outreach data saved successfully");
-            break;
-          case "workflow":
-            // Assuming there would be a saveWorkflow function
-            // await saveWorkflow(campaignId, data);
-            toast.success("Workflow data saved successfully");
-            break;
-          case "settings":
-            const settingsData = data as SettingsFormData;
-            await saveSettings(campaignId, {
-              emailSettings: settingsData.emailSettings,
-              campaignSettings: {
-                ...settingsData.campaignSettings,
-                name: settingsData.campaignSettings.name || "New Campaign"
-              }
-            });
-            toast.success("Campaign settings saved successfully");
-            break;
-        }
-      } catch (error) {
-        console.error(`Error saving ${step} data:`, error);
-        toast.error(`Failed to save ${step} data`);
-        return;
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-
-    // Move to next step
-    if (activeStep < steps.length - 1) {
-      setActiveStep(activeStep + 1);
-    } else {
-      // Final step completed
-      router.push(`/campaigns/${campaignId}`);
+  // Handle step navigation
+  const goToStep = (step: Step) => {
+    const stepIndex = steps.findIndex(s => s.key === step);
+    const currentIndex = steps.findIndex(s => s.key === currentStep);
+    
+    // Only allow going to completed steps or the next step
+    if (stepIndex <= currentIndex || stepIndex === currentIndex + 1) {
+      setCurrentStep(step);
     }
   };
 
+  const goToNextStep = () => {
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < steps.length) {
+      setCurrentStep(steps[nextIndex].key);
+    }
+  };
+
+  const goToPreviousStep = () => {
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+      setCurrentStep(steps[prevIndex].key);
+    }
+  };
+
+  // Handle targeting form submission
+  const handleTargetingSubmit = async (data: TargetingFormData) => {
+    setIsSubmitting(true);
+    
+    try {
+      // Create campaign if it doesn't exist
+      let currentCampaignId = campaignId;
+      if (!currentCampaignId) {
+        const campaign = await createCampaign("New Campaign");
+        currentCampaignId = campaign.id;
+        setCampaignId(currentCampaignId);
+      }
+
+      // Create audience
+      await createAudience({
+        campaignId: currentCampaignId,
+        name: `Audience ${new Date().toLocaleDateString()}`,
+        contacts: data.contacts,
+        organizations: data.organizations,
+        jobTitles: data.jobTitles,
+        totalResults: data.totalResults || data.contacts.length,
+        csvFileName: data.csvFileName
+      });
+
+      // Mark prospect list as used if applicable
+      const prospectListId = searchParams?.get('prospectList');
+      if (prospectListId) {
+        await markProspectListAsUsedInCampaigns(parseInt(prospectListId));
+      }
+
+      // Save form data and proceed
+      setFormData(prev => ({ ...prev, targeting: data }));
+      toast.success("Audience created successfully");
+      goToNextStep();
+      
+    } catch (error) {
+      console.error("Error in targeting step:", error);
+      toast.error("Failed to create audience");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle settings form submission
+  const handleSettingsSubmit = async (data: SettingsFormData) => {
+    if (!campaignId) {
+      toast.error("Campaign not found");
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // Convert settings data to the format expected by saveSettings
+      const settingsData = {
+        emailSettings: data.emailSettings,
+        campaignSettings: {
+          name: data.name,
+          ...data.campaignSettings,
+        },
+      };
+
+      await saveSettings(campaignId, settingsData);
+      
+      // Save form data and proceed
+      setFormData(prev => ({ ...prev, settings: data }));
+      toast.success("Campaign settings saved successfully");
+      goToNextStep();
+      
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast.error("Failed to save campaign settings");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle final campaign creation
+  const handleCreateCampaign = async () => {
+    if (!campaignId) {
+      toast.error("Campaign not found");
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // Campaign is already created and configured, just redirect
+      toast.success("Campaign created successfully!");
+      router.push(`/campaigns/${campaignId}`);
+    } catch (error) {
+      console.error("Error finalizing campaign:", error);
+      toast.error("Failed to finalize campaign");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Check if step is completed
+  const isStepCompleted = (step: Step) => {
+    switch (step) {
+      case 'targeting':
+        return formData.targeting !== null;
+      case 'settings':
+        return formData.settings !== null;
+      case 'review':
+        return false; // Review step is never "completed"
+      default:
+        return false;
+    }
+  };
+
+  // Check if step is accessible
+  const isStepAccessible = (step: Step) => {
+    const stepIndex = steps.findIndex(s => s.key === step);
+    
+    // First step is always accessible
+    if (stepIndex === 0) return true;
+    
+    // Other steps are accessible if the previous step is completed
+    const prevStep = steps[stepIndex - 1];
+    return isStepCompleted(prevStep.key);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Create New Campaign</h1>
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Create New Campaign</h1>
+          <p className="text-muted-foreground">
+            Set up your sales outreach campaign in a few simple steps
+          </p>
+        </div>
+        
+        {currentStepIndex > 0 && (
+          <Button
+            variant="outline"
+            onClick={goToPreviousStep}
+            disabled={isSubmitting}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+        )}
+      </div>
       
       <Card>
         <CardHeader>
-          <CardTitle>Campaign Creation</CardTitle>
+          <CardTitle>Campaign Setup</CardTitle>
           <CardDescription>
-            Complete each step to set up your sales campaign
+            Complete each step to configure your campaign
           </CardDescription>
         </CardHeader>
         
         <CardContent>
-          {/* Custom Stepper Implementation */}
+          {/* Step Progress Indicator */}
           <div className="mb-8">
             <div className="flex justify-between">
               {steps.map((step, index) => (
                 <div 
-                  key={step.id}
+                  key={step.key}
                   className={cn(
                     "flex flex-col items-center relative",
                     index < steps.length - 1 && "flex-1"
@@ -228,7 +302,7 @@ export default function NewCampaignPage() {
                     <div 
                       className={cn(
                         "absolute top-4 left-1/2 w-full h-0.5 -z-10",
-                        activeStep > index 
+                        isStepCompleted(step.key) || currentStepIndex > index
                           ? "bg-primary" 
                           : "bg-muted"
                       )}
@@ -238,20 +312,22 @@ export default function NewCampaignPage() {
                   {/* Step circle */}
                   <button
                     type="button"
-                    onClick={() => activeStep > step.id && setActiveStep(step.id)}
-                    disabled={activeStep < step.id}
+                    onClick={() => isStepAccessible(step.key) && goToStep(step.key)}
+                    disabled={!isStepAccessible(step.key) || isSubmitting}
                     className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center mb-2 border-2",
-                      activeStep === step.id && "bg-primary text-primary-foreground border-primary",
-                      activeStep > step.id && "bg-primary text-primary-foreground border-primary",
-                      activeStep < step.id && "bg-background border-muted text-muted-foreground",
-                      activeStep >= step.id && "cursor-pointer"
+                      "w-8 h-8 rounded-full flex items-center justify-center mb-2 border-2 transition-colors",
+                      currentStep === step.key && "bg-primary text-primary-foreground border-primary",
+                      isStepCompleted(step.key) && currentStep !== step.key && "bg-primary text-primary-foreground border-primary",
+                      !isStepCompleted(step.key) && currentStep !== step.key && "bg-background border-muted text-muted-foreground",
+                      isStepAccessible(step.key) && !isSubmitting && "cursor-pointer hover:border-primary/50",
+                      !isStepAccessible(step.key) && "cursor-not-allowed opacity-50"
                     )}
                   >
-                    {activeStep > step.id 
-                      ? <CheckIcon className="h-4 w-4" /> 
-                      : <span>{step.id + 1}</span>
-                    }
+                    {isStepCompleted(step.key) && currentStep !== step.key ? (
+                      <CheckIcon className="h-4 w-4" />
+                    ) : (
+                      <span>{index + 1}</span>
+                    )}
                   </button>
                   
                   {/* Step label and description */}
@@ -259,10 +335,12 @@ export default function NewCampaignPage() {
                     <span 
                       className={cn(
                         "text-sm font-medium",
-                        activeStep >= step.id ? "text-foreground" : "text-muted-foreground"
+                        (currentStep === step.key || isStepCompleted(step.key)) 
+                          ? "text-foreground" 
+                          : "text-muted-foreground"
                       )}
                     >
-                      {step.label}
+                      {step.title}
                     </span>
                     <p className="text-xs text-muted-foreground hidden sm:block">
                       {step.description}
@@ -273,41 +351,32 @@ export default function NewCampaignPage() {
             </div>
           </div>
 
+          {/* Step Content */}
           <div className="mt-8">
-            {activeStep === 0 && (
+            {currentStep === 'targeting' && (
               <TargetingForm 
-                onSubmit={(data) => handleStepSubmit("targeting", data)} 
+                onSubmit={handleTargetingSubmit} 
                 isSubmitting={isSubmitting}
                 initialData={formData.targeting || defaultTargetingData}
                 campaignId={campaignId || 0}
               />
             )}
-            {activeStep === 1 && (
-              <PitchForm 
-                onSubmit={(data) => handleStepSubmit("pitch", data)}
-                isSubmitting={isSubmitting}
-                initialData={formData.pitch || defaultPitchData}
-              />
-            )}
-            {activeStep === 2 && (
-              <OutreachForm 
-                onSubmit={(data) => handleStepSubmit("outreach", data)}
-                isSubmitting={isSubmitting}
-                initialData={formData.outreach}
-              />
-            )}
-            {activeStep === 3 && (
-              <WorkflowForm 
-                onSubmit={(data) => handleStepSubmit("workflow", data)}
-                isSubmitting={isSubmitting}
-                initialData={formData.workflow || defaultWorkflowData}
-              />
-            )}
-            {activeStep === 4 && (
-              <SettingsForm 
-                onSubmit={(data) => handleStepSubmit("settings", data)}
+            
+            {currentStep === 'settings' && (
+              <CampaignSettingsStep 
+                onSubmit={handleSettingsSubmit}
                 isSubmitting={isSubmitting}
                 initialData={formData.settings || defaultSettingsData}
+              />
+            )}
+            
+            {currentStep === 'review' && (
+              <CampaignReviewStep
+                campaignId={campaignId}
+                targetingData={formData.targeting}
+                settingsData={formData.settings}
+                onCreateCampaign={handleCreateCampaign}
+                isSubmitting={isSubmitting}
               />
             )}
           </div>

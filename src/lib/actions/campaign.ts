@@ -16,12 +16,21 @@ import {
   audienceContacts,
   campaignOutreach,
   ctaOptions,
-  personalizationSources
+  personalizationSources,
+  campaignEnrollments,
+  campaignEnrolledContacts,
+  targetLists
 } from "@/lib/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
-import { OutreachFormData, SettingsFormData, TargetingFormData } from "@/types";
+import { 
+  OutreachFormData, 
+  SettingsFormData, 
+  PitchFormData,
+  WorkflowFormData,
+  TargetingFormData
+} from "@/types";
 
 const db = await dbClient();
 
@@ -102,6 +111,12 @@ export async function getCampaign(id: number) {
           features: true,
         },
       },
+      outreach: {
+        with: {
+          ctaOptions: true,
+          personalizationSources: true,
+        },
+      },
     },
   });
 
@@ -145,7 +160,7 @@ export async function deleteCampaign(id: number) {
     throw new Error("Unauthorized");
   }
 
-  // rather then deleting the campaign, we can just update the status to "deleted"
+  // Rather than deleting the campaign, we can just update the status to "deleted"
   await db
     .update(campaigns)
     .set({ status: "deleted" })
@@ -154,12 +169,12 @@ export async function deleteCampaign(id: number) {
         eq(campaigns.id, id),
         eq(campaigns.userId, session.user.id)
       )
-    )
+    );
 
   revalidatePath("/campaigns");
 }
 
-// Save targeting data
+// Save targeting data (Legacy - for backward compatibility with existing audience system)
 export async function saveTargeting(
   campaignId: number,
   data: TargetingFormData
@@ -199,8 +214,8 @@ export async function saveTargeting(
           campaignId,
           organizationId: org.id,
           name: org.name,
-          industry: org.industry,
-          employeeCount: org.employeeCount,
+          industry: org.industry || null,
+          employeeCount: org.employeeCount || null,
         }))
       );
     }
@@ -214,14 +229,14 @@ export async function saveTargeting(
       );
     }
 
-    
-    // Create campaign audience
+    // Create campaign audience (Legacy system)
     const [audience] = await tx
       .insert(campaignAudiences)
       .values({
         campaignId,
         name: `Audience ${new Date().toLocaleDateString()}`,
         totalResults: data.totalResults || 0,
+        csvFileName: data.csvFileName || null,
       })
       .returning();
 
@@ -237,7 +252,22 @@ export async function saveTargeting(
           state: contact.state || null,
           country: contact.country || null,
           email: contact.email || null,
-          apolloId: contact.id || `temp-${Date.now()}`,
+          apolloId: contact.id?.startsWith('csv-') ? null : contact.id,
+          // Additional prospect fields
+          firstName: contact.first_name as string || null,
+          lastName: contact.last_name as string || null,
+          department: contact.department as string|| null,
+          tenureMonths: contact.tenure_months as number|| null,
+          notableAchievement: contact.notable_achievement as string|| null,
+          // Additional company fields
+          companyIndustry: contact.company_industry as string|| null,
+          companyEmployeeCount: contact.company_employee_count as string|| null,
+          companyAnnualRevenue: contact.company_annual_revenue as string|| null,
+          companyFundingStage: contact.company_funding_stage as string|| null,
+          companyGrowthSignals: contact.company_growth_signals as string|| null,
+          companyRecentNews: contact.company_recent_news as string|| null,
+          companyTechnography: contact.company_technography as string|| null,
+          companyDescription: contact.company_description as string|| null,
         }))
       );
     }
@@ -246,17 +276,107 @@ export async function saveTargeting(
   revalidatePath(`/campaigns/${campaignId}`);
 }
 
+// New function to create campaign enrollment from prospect list
+export async function createCampaignEnrollment(
+  campaignId: number,
+  prospectListId: number
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  // Verify campaign ownership
+  const campaign = await db.query.campaigns.findFirst({
+    where: and(
+      eq(campaigns.id, campaignId),
+      eq(campaigns.userId, session.user.id)
+    ),
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  // Get the prospect list with contacts
+  const prospectList = await db.query.targetLists.findFirst({
+    where: and(
+      eq(targetLists.id, prospectListId),
+      eq(targetLists.userId, session.user.id),
+      eq(targetLists.type, 'prospect')
+    ),
+    with: {
+      contacts: true,
+    },
+  });
+
+  if (!prospectList) {
+    throw new Error("Prospect list not found");
+  }
+
+  // Create enrollment with data snapshot
+  await db.transaction(async (tx) => {
+    // Create the enrollment record
+    const [enrollment] = await tx
+      .insert(campaignEnrollments)
+      .values({
+        campaignId,
+        sourceTargetListId: prospectListId,
+        enrollmentDate: new Date(),
+        status: 'active',
+        snapshotData: {
+          listName: prospectList.name,
+          listDescription: prospectList.description,
+          enrollmentDate: new Date().toISOString(),
+          contactCount: prospectList.contacts.length,
+        },
+      })
+      .returning();
+
+    // Insert enrolled contacts with snapshot data
+    if (prospectList.contacts.length > 0) {
+      await tx.insert(campaignEnrolledContacts).values(
+        prospectList.contacts.map(contact => ({
+          campaignEnrollmentId: enrollment.id,
+          apolloProspectId: contact.apolloProspectId,
+          contactSnapshot: {
+            name: contact.name,
+            email: contact.email,
+            title: contact.title,
+            companyName: contact.companyName,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            department: contact.department,
+            city: contact.city,
+            state: contact.state,
+            country: contact.country,
+            additionalData: contact.additionalData,
+          },
+          emailStatus: 'pending',
+        }))
+      );
+    }
+
+    // Mark the prospect list as used in campaigns
+    await tx
+      .update(targetLists)
+      .set({
+        usedInCampaigns: true,
+        campaignCount: sql`campaign_count + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(targetLists.id, prospectListId));
+  });
+
+  revalidatePath(`/campaigns/${campaignId}`);
+  revalidatePath("/prospect-lists");
+  revalidatePath(`/prospect-lists/${prospectListId}`);
+}
+
 // Save pitch data
 export async function savePitch(
   campaignId: number,
-  data: {
-    url: string;
-    description: string;
-    features: Array<{
-      problem: string;
-      solution: string;
-    }>;
-  }
+  data: PitchFormData
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -311,7 +431,6 @@ export async function savePitch(
   revalidatePath(`/campaigns/${campaignId}`);
 }
 
-
 // Save outreach data
 export async function saveOutreach(
   campaignId: number,
@@ -321,73 +440,95 @@ export async function saveOutreach(
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
-    // Verify campaign ownership
-    const campaign = await db.query.campaigns.findFirst({
-      where: and(
-        eq(campaigns.id, campaignId),
-        eq(campaigns.userId, session.user.id)
-      ),
-    });
   
-    if (!campaign) {
-      throw new Error("Campaign not found");
-    }
+  // Verify campaign ownership
+  const campaign = await db.query.campaigns.findFirst({
+    where: and(
+      eq(campaigns.id, campaignId),
+      eq(campaigns.userId, session.user.id)
+    ),
+  });
 
-    await db.transaction(async (tx) => {
-      // Create or update pitch
-      await tx
-        .insert(campaignOutreach)
-        .values({
-          campaignId,
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  await db.transaction(async (tx) => {
+    // Create or update outreach
+    await tx
+      .insert(campaignOutreach)
+      .values({
+        campaignId,
+        messageTone: data.messageTone,
+        selectedCta: data.selectedCta,
+      })
+      .onConflictDoUpdate({
+        target: [campaignOutreach.campaignId],
+        set: {
           messageTone: data.messageTone,
           selectedCta: data.selectedCta,
-        })
-        .onConflictDoUpdate({
-          target: [campaignPitch.campaignId],
-          set: {
-            messageTone: data.messageTone,
-            selectedCta: data.selectedCta,
-          },
-        })
-        .returning();
+        },
+      });
 
-       // Clear existing CTA options and personalization sources
-       await tx.delete(ctaOptions).where(eq(ctaOptions.campaignId, campaignId));
-       await tx.delete(personalizationSources).where(eq(personalizationSources.campaignId, campaignId));
-   
-       // Insert new CTA options
-       if (data.ctaOptions.length) {
-         await tx.insert(ctaOptions).values(
-           data.ctaOptions.map(option => {
-            return {
-             campaignId,
-             label: option.label,
-             sourceId : option.id
-            }
-           })
-         );
-       }
-   
-       // Insert new personalization sources
-       if (data.personalizationSources.length) {
-         await tx.insert(personalizationSources).values(
-           data.personalizationSources.map(source => {
-             return {
-             campaignId,
-             label : source.label,
-            enabled: +source.enabled,
-            sourceId: source.id
-           }
-       })
-    );
-  } 
-    }); 
-  
-    revalidatePath(`/campaigns/${campaignId}`);
+    // Clear existing CTA options and personalization sources
+    await tx.delete(ctaOptions).where(eq(ctaOptions.campaignId, campaignId));
+    await tx.delete(personalizationSources).where(eq(personalizationSources.campaignId, campaignId));
+
+    // Insert new CTA options
+    if (data.ctaOptions.length) {
+      await tx.insert(ctaOptions).values(
+        data.ctaOptions.map(option => ({
+          campaignId,
+          label: option.label,
+          sourceId: option.id,
+        }))
+      );
+    }
+
+    // Insert new personalization sources
+    if (data.personalizationSources.length) {
+      await tx.insert(personalizationSources).values(
+        data.personalizationSources.map(source => ({
+          campaignId,
+          label: source.label,
+          enabled: source.enabled ? 1 : 0,
+          sourceId: source.id,
+        }))
+      );
+    }
+  });
+
+  revalidatePath(`/campaigns/${campaignId}`);
 }
 
+// Save workflow data
+export async function saveWorkflow(
+  campaignId: number,
+  data: WorkflowFormData
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
 
+  // Verify campaign ownership
+  const campaign = await db.query.campaigns.findFirst({
+    where: and(
+      eq(campaigns.id, campaignId),
+      eq(campaigns.userId, session.user.id)
+    ),
+  });
 
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  // TODO : For now, we'll store workflow data in the campaign metadata
+  // In the future, this could be expanded to a dedicated workflow table
+  console.log(data);
+
+  revalidatePath(`/campaigns/${campaignId}`);
+}
 
 // Save settings data
 export async function saveSettings(
@@ -415,38 +556,40 @@ export async function saveSettings(
     // Update campaign name
     await tx
       .update(campaigns)
-      .set({ name: data.campaignSettings.name })
+      .set({ 
+        name: data.name,
+        updatedAt: new Date(),
+      })
       .where(eq(campaigns.id, campaignId));
 
-
     /**
-     * Converts local time in a specific timezone to UTC ISO string.
-     *
-     * @param {string} time - Time in 24-hour format (e.g., "09:00")
-     * @param {string} date - Date in "YYYY-MM-DD" format
-     * @param {string} timeZone - IANA timezone string (e.g., "Asia/Calcutta")
-     * @returns {string} UTC ISO string (e.g., "2025-05-09T03:30:00.000Z")
+     * Converts local time in a specific timezone to UTC time string.
      */
-    function localTimeToUTCISOString(time: string, timeZone: string) {
-      const date = new Date().toISOString().split("T")[0];
-      const dateTimeString = `${date} ${time}`; // e.g., "2025-05-09 09:00"
-      const formatString = "yyyy-MM-dd HH:mm";
-      const localDate = parse(dateTimeString, formatString, new Date());
-    
-      const utcDate = fromZonedTime(localDate, timeZone);
-      
-      // Extract HH:mm:ss from the UTC Date
-      const hours = String(utcDate.getUTCHours()).padStart(2, '0');
-      const minutes = String(utcDate.getUTCMinutes()).padStart(2, '0');
-      const seconds = String(utcDate.getUTCSeconds()).padStart(2, '0');
+    function localTimeToUTCTimeString(time: string, timeZone: string): string {
+      try {
+        const date = new Date().toISOString().split("T")[0];
+        const dateTimeString = `${date} ${time}`;
+        const formatString = "yyyy-MM-dd HH:mm";
+        const localDate = parse(dateTimeString, formatString, new Date());
+        
+        const utcDate = fromZonedTime(localDate, timeZone);
+        
+        // Extract HH:mm:ss from the UTC Date
+        const hours = String(utcDate.getUTCHours()).padStart(2, '0');
+        const minutes = String(utcDate.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(utcDate.getUTCSeconds()).padStart(2, '0');
 
-      return `${hours}:${minutes}:${seconds}`;
+        return `${hours}:${minutes}:${seconds}`;
+      } catch (error) {
+        console.error('Error converting time:', error);
+        // Fallback to the original time if conversion fails
+        return time.length === 5 ? `${time}:00` : time;
+      }
     }
 
     const timeZone = data.campaignSettings.timezone;
-    const sendingStartTime = localTimeToUTCISOString(data.campaignSettings.sendingTime.startTime, timeZone);
-    const sendingEndTime = localTimeToUTCISOString(data.campaignSettings.sendingTime.endTime, timeZone);
-    
+    const sendingStartTime = localTimeToUTCTimeString(data.campaignSettings.sendingTime.startTime, timeZone);
+    const sendingEndTime = localTimeToUTCTimeString(data.campaignSettings.sendingTime.endTime, timeZone);
 
     // Update campaign settings
     await tx
@@ -508,4 +651,113 @@ export async function saveSettings(
   });
 
   revalidatePath(`/campaigns/${campaignId}`);
+}
+
+// Get campaign enrollments
+export async function getCampaignEnrollments(campaignId: number) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  // Verify campaign ownership
+  const campaign = await db.query.campaigns.findFirst({
+    where: and(
+      eq(campaigns.id, campaignId),
+      eq(campaigns.userId, session.user.id)
+    ),
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  const enrollments = await db.query.campaignEnrollments.findMany({
+    where: eq(campaignEnrollments.campaignId, campaignId),
+    with: {
+      enrolledContacts: true,
+      sourceTargetList: true,
+    },
+  });
+
+  return enrollments;
+}
+
+// Update enrollment status
+export async function updateEnrollmentStatus(
+  enrollmentId: number,
+  status: 'active' | 'paused' | 'completed'
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  await db
+    .update(campaignEnrollments)
+    .set({ 
+      status,
+    })
+    .where(eq(campaignEnrollments.id, enrollmentId));
+
+  revalidatePath("/campaigns");
+}
+
+// Get a campaign with its enrollments and enrolled contacts
+export async function getCampaignWithEnrollments(id: number) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  const campaign = await db.query.campaigns.findFirst({
+    where: and(
+      eq(campaigns.id, id),
+      eq(campaigns.userId, session.user.id)
+    ),
+    with: {
+      settings: true,
+      sendingDays: true,
+      targeting: {
+        with: {
+          organizations: true,
+          jobTitles: true,
+        },
+      },
+      pitch: {
+        with: {
+          features: true,
+        },
+      },
+      outreach: {
+        with: {
+          ctaOptions: true,
+          personalizationSources: true,
+        },
+      },
+      // New enrollment data
+      enrollments: {
+        with: {
+          enrolledContacts: true,
+          sourceTargetList: {
+            with: {
+              contacts: true,
+            },
+          },
+        },
+      },
+      // Legacy audience data for backward compatibility
+      audiences: {
+        with: {
+          contacts: true,
+        },
+      },
+    },
+  });
+
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  return campaign;
 }

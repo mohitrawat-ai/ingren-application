@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { 
-  ChevronDown, 
-  Plus, 
-  Edit, 
-  Play, 
-  Pause, 
-  Trash2} from "lucide-react";
+import {
+  ChevronDown,
+  Plus,
+  Edit,
+  Play,
+  Pause,
+  Trash2
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Card,
   CardContent,
   CardDescription,
@@ -48,73 +49,76 @@ import {
 
 import { getCampaigns, updateCampaignStatus, deleteCampaign } from "@/lib/actions/campaign";
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import { Campaign } from "@/lib/schema";
 
-type CampaignExtra = Campaign & {
-  statistics: {
-    sentEmails: number;
-    openRate: string;
-    clickRate: string;
-  }
-}
-
-
 export default function CampaignsPage() {
-  const [campaigns, setCampaigns] = useState<CampaignExtra[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
 
-  useEffect(() => {
-    const loadCampaigns = async () => {
-      try {
-        setLoading(true);
-        const data = await getCampaigns();
-        setCampaigns(data);
-      } catch (error) {
-        toast.error("Failed to load campaigns");
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const {
+    data: campaigns = [],
+    isLoading: loading,
+    error
+  } = useQuery({
+    queryKey: ['campaigns'],
+    queryFn: getCampaigns,
+  });
 
-    loadCampaigns();
-  }, []);
-
-  const handleStatusUpdate = async (id: number, status: "draft" | "active" | "paused") => {
-    try {
-      await updateCampaignStatus(id, status);
-      setCampaigns(
-        campaigns.map((campaign) =>
-          campaign.id === id ? { ...campaign, status } : campaign
-        )
-      );
-      toast.success(`Campaign ${status === "active" ? "started" : "paused"} successfully`);
-    } catch (error) {
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: "draft" | "active" | "paused" }) =>
+      updateCampaignStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success("Campaign status updated successfully");
+    },
+    onError: (error) => {
       toast.error("Failed to update campaign status");
       console.error(error);
-    }
-  };
+    },
+  });
 
   const openDeleteDialog = (campaign: Campaign) => {
     setCampaignToDelete(campaign);
     setDeleteDialogOpen(true);
   };
 
-  const handleDelete = async () => {
-    if (!campaignToDelete) return;
-    
-    try {
-      await deleteCampaign(campaignToDelete.id);
-      setCampaigns(campaigns.filter(c => c.id !== campaignToDelete.id));
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteCampaign(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success("Campaign deleted successfully");
       setDeleteDialogOpen(false);
-    } catch (error) {
+    },
+    onError: (error) => {
       toast.error("Failed to delete campaign");
       console.error(error);
-    }
+    },
+  });
+
+  // Update these handler functions
+  const handleStatusUpdate = async (id: number, status: "draft" | "active" | "paused") => {
+    statusMutation.mutate({ id, status });
   };
+
+  const handleDelete = async () => {
+    if (!campaignToDelete) return;
+    deleteMutation.mutate(campaignToDelete.id);
+  };
+
+  // Add error handling
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Campaigns</h1>
+        <div className="text-center py-6">
+          <p className="text-red-600">Failed to load campaigns. Please try again.</p>
+        </div>
+      </div>
+    );
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -141,7 +145,7 @@ export default function CampaignsPage() {
           </Link>
         </Button>
       </div>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>All Campaigns</CardTitle>
@@ -216,7 +220,7 @@ export default function CampaignsPage() {
                               <Play className="mr-2 h-4 w-4" /> Start
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => openDeleteDialog(campaign)}
                           >
@@ -232,19 +236,19 @@ export default function CampaignsPage() {
           )}
         </CardContent>
       </Card>
-      
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the campaign &quot;{campaignToDelete?.name}&quot;. 
+              This will permanently delete the campaign &quot;{campaignToDelete?.name}&quot;.
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >

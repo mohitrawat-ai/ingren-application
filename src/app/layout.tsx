@@ -1,9 +1,9 @@
 import "@/styles/globals.css";
 import { Inter as FontSans } from "next/font/google";
 import { cn } from "@/lib/utils";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { SessionProvider } from "@/components/session-provider";
+import { SessionProvider } from "@/providers/session-provider";
 import { ensureAppInitialized } from "@/lib/config/appInitializer";
 
 const fontSans = FontSans({ 

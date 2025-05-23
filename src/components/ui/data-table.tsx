@@ -10,9 +10,9 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
+  getPaginationRowModel
 } from "@tanstack/react-table"
 import { ChevronDown } from "lucide-react"
 
@@ -39,6 +39,14 @@ interface DataTableProps<TData, TValue> {
   searchKey?: string
   searchPlaceholder?: string
   onSelectionChange?: (selectedRows: TData[]) => void
+  // Server-side pagination props
+  pagination?: {
+    total: number
+    page: number
+    pageSize: number
+    pages: number
+  }
+  onPageChange?: (page: number) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -47,11 +55,16 @@ export function DataTable<TData, TValue>({
   searchKey,
   searchPlaceholder = "Search...",
   onSelectionChange,
+  pagination,
+  onPageChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+
+  // Determine if we're using server-side pagination
+  const isServerSidePagination = pagination && onPageChange
 
   const table = useReactTable({
     data,
@@ -59,7 +72,16 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // Only use client-side pagination if no server-side pagination provided
+    ...(isServerSidePagination 
+      ? {
+          manualPagination: true,
+          pageCount: pagination.pages,
+        }
+      : {
+          getPaginationRowModel: getPaginationRowModel(),
+        }
+    ),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
@@ -69,6 +91,12 @@ export function DataTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       rowSelection,
+      ...(isServerSidePagination && {
+        pagination: {
+          pageIndex: pagination.page - 1, // Convert to 0-based index
+          pageSize: pagination.pageSize,
+        },
+      }),
     },
   })
 
@@ -79,6 +107,53 @@ export function DataTable<TData, TValue>({
       onSelectionChange(selectedRows)
     }
   }, [rowSelection, onSelectionChange, table])
+
+  // Server-side pagination handlers
+  const handlePreviousPage = () => {
+    if (isServerSidePagination && pagination.page > 1) {
+      onPageChange(pagination.page - 1)
+    } else {
+      table.previousPage()
+    }
+  }
+
+  const handleNextPage = () => {
+    if (isServerSidePagination && pagination.page < pagination.pages) {
+      onPageChange(pagination.page + 1)
+    } else {
+      table.nextPage()
+    }
+  }
+
+  const canPreviousPage = isServerSidePagination 
+    ? pagination.page > 1 
+    : table.getCanPreviousPage()
+
+  const canNextPage = isServerSidePagination 
+    ? pagination.page < pagination.pages 
+    : table.getCanNextPage()
+
+  // Generate page numbers for pagination display
+  const generatePageNumbers = () => {
+    if (!isServerSidePagination) return []
+    
+    const { page, pages } = pagination
+    const pageNumbers = []
+    const maxVisible = 5
+
+    let startPage = Math.max(1, page - Math.floor(maxVisible / 2))
+    const endPage = Math.min(pages, startPage + maxVisible - 1)
+    
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1)
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i)
+    }
+
+    return pageNumbers
+  }
 
   return (
     <div className="w-full">
@@ -98,7 +173,10 @@ export function DataTable<TData, TValue>({
             <div className="flex items-center space-x-1">
               <span className="text-sm text-muted-foreground">
                 {table.getFilteredSelectedRowModel().rows.length} of{" "}
-                {table.getFilteredRowModel().rows.length} row(s) selected
+                {isServerSidePagination 
+                  ? pagination.total 
+                  : table.getFilteredRowModel().rows.length
+                } row(s) selected
               </span>
             </div>
           )}
@@ -130,6 +208,7 @@ export function DataTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -181,29 +260,90 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
+
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          {isServerSidePagination ? (
+            <>
+              Showing {((pagination.page - 1) * pagination.pageSize) + 1} to{" "}
+              {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{" "}
+              {pagination.total} entries
+              {table.getFilteredSelectedRowModel().rows.length > 0 && (
+                <span className="ml-2">
+                  ({table.getFilteredSelectedRowModel().rows.length} selected)
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              {table.getFilteredSelectedRowModel().rows.length} of{" "}
+              {table.getFilteredRowModel().rows.length} row(s) selected.
+            </>
+          )}
         </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
+
+        {/* Enhanced Pagination Controls for Server-Side */}
+        {isServerSidePagination ? (
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviousPage}
+              disabled={!canPreviousPage}
+            >
+              Previous
+            </Button>
+            
+            {/* Page Numbers */}
+            <div className="flex items-center space-x-1">
+              {generatePageNumbers().map((pageNum) => (
+                <Button
+                  key={pageNum}
+                  variant={pageNum === pagination.page ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onPageChange(pageNum)}
+                  className="min-w-[32px]"
+                >
+                  {pageNum}
+                </Button>
+              ))}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={!canNextPage}
+            >
+              Next
+            </Button>
+            
+            <div className="text-sm text-muted-foreground ml-2">
+              Page {pagination.page} of {pagination.pages}
+            </div>
+          </div>
+        ) : (
+          /* Original Client-Side Pagination */
+          <div className="space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviousPage}
+              disabled={!canPreviousPage}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={!canNextPage}
+            >
+              Next
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

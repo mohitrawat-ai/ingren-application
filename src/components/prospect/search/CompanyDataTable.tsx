@@ -25,8 +25,12 @@ export function CompanyDataTable() {
     companies, 
     loadingCompanies,
     selectedCompanies, 
-    toggleCompanySelection
+    toggleCompanySelection,
+    companyPagination,
+    searchCompanies
   } = useProspectSearchStore()
+
+  
 
   // Company columns
   const companyColumns: ColumnDef<Company>[] = useMemo(() => [
@@ -83,7 +87,7 @@ export function CompanyDataTable() {
       },
       cell: ({ row }) => (
         <Badge variant="secondary">
-          {row.getValue("industry") || "N/A"}
+          {row.getValue("founded") || "N/A"}
         </Badge>
       ),
     },
@@ -109,11 +113,21 @@ export function CompanyDataTable() {
     {
       accessorKey: "socialProfiles.linkedin",
       header: "Linkedin",
-      cell: ({ row }) => (
-        <div className="text-sm">
-          {row.getValue("location") || "N/A"}
-        </div>
-      ),
+        cell: ({ row }) => {
+        const linkedinUrl = row.original.socialProfiles.linkedin
+        return linkedinUrl ? (
+          <Link 
+            href={linkedinUrl} 
+            target="_blank" 
+            className="text-blue-200 hover:underline inline-flex items-center"
+          >
+            {linkedinUrl.replace(/^https?:\/\//, '')}
+            <ExternalLink className="ml-1 h-3 w-3" />
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">N/A</span>
+        )
+      },
     },
     {
       id: "actions",
@@ -174,6 +188,8 @@ export function CompanyDataTable() {
         columns={companyColumns}
         data={companies}
         searchKey="name"
+        pagination={companyPagination ?? undefined}
+        onPageChange={(page: number) => searchCompanies(page)}
       />
     </div>
   )

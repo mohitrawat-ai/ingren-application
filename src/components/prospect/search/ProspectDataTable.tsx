@@ -30,7 +30,9 @@ export function ProspectDataTable() {
         searchMode,
         selectedProspects,
         toggleProspectSelection,
-        selectedCompanies
+        selectedCompanies,
+        prospectPagination,
+        searchProspects
     } = useProspectSearchStore()
 
     // Prospect columns
@@ -273,6 +275,8 @@ export function ProspectDataTable() {
                     columns={prospectColumns}
                     data={prospects}
                     searchKey="firstName"
+                    pagination={prospectPagination ?? undefined}
+                    onPageChange={(page: number) => searchProspects(page)}
                 />
             </div>
         </div>

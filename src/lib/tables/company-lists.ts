@@ -7,7 +7,7 @@ import { targetLists } from "@/lib/tables/target-lists";
 export const targetListCompanies = pgTable('target_list_companies', {
   id: serial('id').primaryKey(),
   targetListId: integer('target_list_id').notNull().references(() => targetLists.id, { onDelete: 'cascade' }),
-  apolloCompanyId: text('apollo_company_id').notNull(),
+  apolloCompanyId: text('apollo_company_id'),
   companyName: text('company_name').notNull(),
   industry: text('industry'),
   employeeCount: text('employee_count'),

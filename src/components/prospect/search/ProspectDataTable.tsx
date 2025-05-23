@@ -1,9 +1,10 @@
 // src/components/prospect/search/ProspectDataTable.tsx
 "use client"
-import { useMemo } from "react"
+import { useMemo, useCallback } from "react"
 
 import { DataTable } from "@/components/ui/data-table"
 import { useProspectSearchStore } from "@/stores/prospectStore"
+import { SelectedProspectsView } from "./SelectedProspectsView"
 
 import { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal, Building, MapPin } from "lucide-react"
@@ -32,20 +33,54 @@ export function ProspectDataTable() {
         toggleProspectSelection,
         selectedCompanies,
         prospectPagination,
-        searchProspects
+        searchProspects,
+        viewMode,
+        bulkSelectProspects
     } = useProspectSearchStore()
 
+    // Helper function to check if all visible prospects are selected
+    const areAllProspectsSelected = useMemo(() => {
+        if (prospects.length === 0) return false;
+        return prospects.every(prospect => 
+            selectedProspects.some(selected => selected.id === prospect.id)
+        );
+    }, [prospects, selectedProspects]);
+
+    // Helper function to check if some (but not all) prospects are selected
+    const areSomeProspectsSelected = useMemo(() => {
+        if (prospects.length === 0) return false;
+        const selectedCount = prospects.filter(prospect => 
+            selectedProspects.some(selected => selected.id === prospect.id)
+        ).length;
+        return selectedCount > 0 && selectedCount < prospects.length;
+    }, [prospects, selectedProspects]);
+
+    // Function to toggle all visible prospects
+    const toggleAllProspects = useCallback(() => {
+        if (areAllProspectsSelected) {
+            // Deselect all visible prospects
+            prospects.forEach(prospect => {
+                if (selectedProspects.some(selected => selected.id === prospect.id)) {
+                    toggleProspectSelection(prospect);
+                }
+            });
+        } else {
+            // Select all visible prospects that aren't already selected
+            const prospectsToSelect = prospects.filter(prospect => 
+                !selectedProspects.some(selected => selected.id === prospect.id)
+            );
+            bulkSelectProspects(prospectsToSelect);
+        }
+    }, [areAllProspectsSelected, prospects, selectedProspects, toggleProspectSelection, bulkSelectProspects]);
+
     // Prospect columns
-    const prospectColumns: ColumnDef<Prospect>[] = useMemo(() =>[
+    const prospectColumns: ColumnDef<Prospect>[] = useMemo(() => [
         {
             id: "select",
-            header: ({ table }) => (
+            header: () => (
                 <Checkbox
-                    checked={
-                        table.getIsAllPageRowsSelected() ||
-                        (table.getIsSomePageRowsSelected() && "indeterminate")
-                    }
-                    onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                    checked={areAllProspectsSelected ? true : areSomeProspectsSelected ? "indeterminate" : false}
+                    onCheckedChange={toggleAllProspects}
                     aria-label="Select all"
                 />
             ),
@@ -228,7 +263,13 @@ export function ProspectDataTable() {
                 )
             },
         },
-    ], [selectedProspects, toggleProspectSelection])
+    ], [selectedProspects, toggleProspectSelection, areAllProspectsSelected, areSomeProspectsSelected, toggleAllProspects]);
+
+
+        // If in selected view mode, show the selected prospects view
+    if (viewMode === 'selected') {
+        return <SelectedProspectsView />;
+    }
 
     if (loadingProspects) {
         return (

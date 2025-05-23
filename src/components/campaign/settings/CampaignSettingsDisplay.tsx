@@ -28,7 +28,7 @@ import { Separator } from "@/components/ui/separator";
 // Types based on your schema
 interface CampaignSettings {
   id: number;
-  campaignId: number;
+  campaignId?: number;
   fromName: string;
   fromEmail: string;
   emailService: string;
@@ -43,8 +43,8 @@ interface CampaignSettings {
 }
 
 interface CampaignSendingDays {
-  id: number;
-  campaignId: number;
+  id?: number;
+  campaignId?: number;
   monday: boolean;
   tuesday: boolean;
   wednesday: boolean;

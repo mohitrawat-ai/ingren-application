@@ -1,4 +1,4 @@
-// src/app/(dashboard)/prospects/search/page.tsx - Updated with Company List Integration
+// src/app/(dashboard)/prospects/search/page.tsx - Updated with Selection Management
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,10 +9,8 @@ import {
   ArrowLeft,
   Building,
   User,
-  Save,
   Filter,
   Search,
-  List,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -53,6 +51,7 @@ import { ProspectDataTable } from "@/components/prospect/search/ProspectDataTabl
 import { SaveListDialog } from "@/components/prospect/search/SaveListDialog";
 import { CompanyListSelector } from "@/components/prospect/search/CompanyListSelector";
 import { SaveCompanyListDialog } from "@/components/prospect/search/SaveCompanyListDialog";
+import { SelectionToolbar } from "@/components/prospect/search/SelectionToolbar";
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
 // Import our stores
@@ -71,6 +70,7 @@ export default function ProspectSearchPage() {
     // UI state
     activeTab,
     setActiveTab,
+    viewMode,
 
     // Search state
     companyQuery,
@@ -207,20 +207,18 @@ export default function ProspectSearchPage() {
             </Button>
             <h1 className="text-3xl font-bold">Find Prospects</h1>
           </div>
-          <div className="flex items-center gap-2">
-            {activeTab === "companies" && selectedCompanies.length > 0 && (
-              <Button onClick={handleSaveCompanyList} variant="outline">
-                <List className="mr-2 h-4 w-4" />
-                Save Company List ({selectedCompanies.length})
-              </Button>
-            )}
-            {activeTab === "prospects" && selectedProspects.length > 0 && (
-              <Button onClick={() => setSaveProspectDialogOpen(true)}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Prospect List ({selectedProspects.length})
-              </Button>
-            )}
-          </div>
+        </div>
+
+        {/* Selection Toolbars */}
+        <div className="space-y-3 mb-4">
+          <SelectionToolbar 
+            type="companies" 
+            onSave={handleSaveCompanyList}
+          />
+          <SelectionToolbar 
+            type="prospects" 
+            onSave={() => setSaveProspectDialogOpen(true)}
+          />
         </div>
 
         {/* Search and Filter Bar */}
@@ -291,7 +289,7 @@ export default function ProspectSearchPage() {
         </div>
 
         {/* Company List Scoping for Prospects */}
-        {activeTab === "prospects" && (
+        {activeTab === "prospects" && viewMode === "search" && (
           <Card className="mb-4">
             <CardContent className="py-4">
               <div className="flex items-center justify-between">

@@ -28,6 +28,9 @@ interface ProspectSearchState {
   prospectPagination: PaginationInfo | null;
   searchMode: 'all' | 'selection' | 'list';
   
+  // Selection view mode
+  viewMode: 'search' | 'selected';
+  
   // Company List scoping
   selectedCompanyListId: number | null;
   selectedCompanyListName: string | null;
@@ -53,6 +56,11 @@ interface ProspectSearchState {
   toggleProspectSelection: (prospect: Prospect) => void;
   clearProspectSelections: () => void;
   setSearchMode: (mode: 'all' | 'selection' | 'list') => void;
+  
+  // Actions - Selection management
+  setViewMode: (mode: 'search' | 'selected') => void;
+  bulkSelectProspects: (prospects: Prospect[]) => void;
+  bulkDeselectProspects: (prospectIds: string[]) => void;
   
   // Actions - Company List scoping
   setCompanyListScope: (listId: number | null, listName?: string) => void;
@@ -92,6 +100,9 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
       loadingProspects: false,
       prospectPagination: null,
       searchMode: 'all',
+      
+      // Initial state - Selection view
+      viewMode: 'search',
       
       // Initial state - Company List scoping
       selectedCompanyListId: null,
@@ -196,8 +207,14 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
           prospectFilters, 
           selectedCompanies, 
           searchMode,
-          selectedCompanyListId 
+          selectedCompanyListId,
+          viewMode
         } = get();
+        
+        // If in "selected" view mode, don't perform search - just return selected prospects
+        if (viewMode === 'selected') {
+          return;
+        }
         
         set({ loadingProspects: true });
         try {
@@ -258,6 +275,31 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         if (mode !== 'list') {
           set({ selectedCompanyListId: null, selectedCompanyListName: null });
         }
+      },
+      
+      // Actions - Selection management
+      setViewMode: (mode) => {
+        set({ viewMode: mode });
+        
+        // Don't reset pagination when switching view modes
+        // The pagination should be preserved for when user returns to search
+      },
+      
+      bulkSelectProspects: (prospects) => {
+        const { selectedProspects } = get();
+        const existingIds = new Set(selectedProspects.map(p => p.id));
+        const newProspects = prospects.filter(p => !existingIds.has(p.id));
+        
+        set({
+          selectedProspects: [...selectedProspects, ...newProspects]
+        });
+      },
+      
+      bulkDeselectProspects: (prospectIds) => {
+        const { selectedProspects } = get();
+        set({
+          selectedProspects: selectedProspects.filter(p => !prospectIds.includes(p.id))
+        });
       },
       
       // Actions - Company List scoping
@@ -334,6 +376,7 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         selectedProspects: [],
         prospectPagination: null,
         searchMode: 'all',
+        viewMode: 'search',
         selectedCompanyListId: null,
         selectedCompanyListName: null,
         newListName: '',

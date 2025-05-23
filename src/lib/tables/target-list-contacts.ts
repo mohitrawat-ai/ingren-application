@@ -6,7 +6,7 @@ import { targetLists } from "@/lib/tables/target-lists";
 export const targetListContacts = pgTable('target_list_contacts', {
   id: serial('id').primaryKey(),
   targetListId: integer('target_list_id').notNull().references(() => targetLists.id, { onDelete: 'cascade' }),
-  apolloProspectId: text('apollo_prospect_id').notNull(),
+  apolloProspectId: text('apollo_prospect_id'),
   name: text('name').notNull(),
   email: text('email'),
   title: text('title'),

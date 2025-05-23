@@ -1,6 +1,6 @@
 // src/components/prospect/search/CompanyDataTable.tsx
 "use client"
-import { useMemo } from "react"
+import { useMemo, useCallback } from "react"
 import { DataTable } from "@/components/ui/data-table"
 import { useProspectSearchStore } from "@/stores/prospectStore"
 import { ColumnDef } from "@tanstack/react-table"
@@ -30,23 +30,54 @@ export function CompanyDataTable() {
     searchCompanies
   } = useProspectSearchStore()
 
-  
+  // Helper function to check if all visible companies are selected
+  const areAllCompaniesSelected = useMemo(() => {
+    if (companies.length === 0) return false;
+    return companies.every(company => 
+      selectedCompanies.some(selected => selected.id === company.id)
+    );
+  }, [companies, selectedCompanies]);
+
+  // Helper function to check if some (but not all) companies are selected
+  const areSomeCompaniesSelected = useMemo(() => {
+    if (companies.length === 0) return false;
+    const selectedCount = companies.filter(company => 
+      selectedCompanies.some(selected => selected.id === company.id)
+    ).length;
+    return selectedCount > 0 && selectedCount < companies.length;
+  }, [companies, selectedCompanies]);
+
+  // Function to toggle all visible companies
+  const toggleAllCompanies = useCallback(() => {
+    if (areAllCompaniesSelected) {
+      // Deselect all visible companies
+      companies.forEach(company => {
+        if (selectedCompanies.some(selected => selected.id === company.id)) {
+          toggleCompanySelection(company);
+        }
+      });
+    } else {
+      // Select all visible companies that aren't already selected
+      companies.forEach(company => {
+        if (!selectedCompanies.some(selected => selected.id === company.id)) {
+          toggleCompanySelection(company);
+        }
+      });
+    }
+  }, [areAllCompaniesSelected, companies, selectedCompanies, toggleCompanySelection]);
 
   // Company columns
   const companyColumns: ColumnDef<Company>[] = useMemo(() => [
     {
       id: "select",
-      header: ({ table }) => (
+      header: () => (
         <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          checked={areAllCompaniesSelected ? true : areSomeCompaniesSelected ? "indeterminate" : false}
+          onCheckedChange={toggleAllCompanies}
           aria-label="Select all"
         />
       ),
-     cell: ({ row }) => (
+      cell: ({ row }) => (
         <Checkbox
           checked={selectedCompanies.some(c => c.id === row.original.id)}
           onCheckedChange={() => toggleCompanySelection(row.original)}
@@ -113,7 +144,7 @@ export function CompanyDataTable() {
     {
       accessorKey: "socialProfiles.linkedin",
       header: "Linkedin",
-        cell: ({ row }) => {
+      cell: ({ row }) => {
         const linkedinUrl = row.original.socialProfiles.linkedin
         return linkedinUrl ? (
           <Link 
@@ -166,8 +197,7 @@ export function CompanyDataTable() {
         )
       },
     },
-  ], [selectedCompanies, toggleCompanySelection])
-
+  ], [selectedCompanies, toggleCompanySelection, areAllCompaniesSelected, areSomeCompaniesSelected, toggleAllCompanies])
 
   if (loadingCompanies) {
     return (

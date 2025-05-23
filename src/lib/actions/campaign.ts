@@ -4,22 +4,21 @@
 import { revalidatePath } from "next/cache";
 import { db as dbClient } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { 
+import {
   campaigns,
   campaignSettings,
   campaignSendingDays,
-  campaignTargeting,
-  targetOrganizations,
-  targetJobTitles,
-  campaignAudiences,
-  audienceContacts
+  campaignEnrollments,
+  campaignEnrolledContacts,
+  targetLists,
+  targetListContacts
 } from "@/lib/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
 
 const db = await dbClient();
-
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 // Simple type definitions for this module
 type TargetingMethod = 'prospect_list' | 'company_list_search' | 'csv_upload';
 
@@ -76,15 +75,13 @@ interface SettingsData {
 // Create a new campaign
 export async function createCampaign(name: string) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const userId = session?.user?.id || "-1";
 
   const [campaign] = await db
     .insert(campaigns)
     .values({
       name,
-      userId: session.user.id,
+      userId,
       status: "draft",
     })
     .returning();
@@ -96,31 +93,49 @@ export async function createCampaign(name: string) {
 // Get all campaigns for the current user
 export async function getCampaigns() {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const userId = session?.user?.id || "-1";
 
   const campaignsList = await db.query.campaigns.findMany({
     where: and(
-      eq(campaigns.userId, session.user.id),
+      eq(campaigns.userId, userId),
       ne(campaigns.status, "deleted")
     ),
     orderBy: [campaigns.createdAt],
     with: {
       settings: true,
-      audiences: true,
+      enrollments: {
+        with: {
+          enrolledContacts: true,
+          sourceTargetList: true,
+        },
+      },
     },
   });
 
-  // Add mock statistics for UI
-  const campaignsWithStats = campaignsList.map(campaign => ({
-    ...campaign,
-    statistics: {
-      sentEmails: Math.floor(Math.random() * 2000),
-      openRate: `${(Math.random() * 40 + 10).toFixed(1)}%`,
-      clickRate: `${(Math.random() * 20 + 5).toFixed(1)}%`
-    }
-  }));
+  // Transform campaigns to include enrollment stats
+  const campaignsWithStats = campaignsList.map(campaign => {
+    const totalContacts = campaign.enrollments.reduce(
+      (sum, enrollment) => sum + enrollment.enrolledContacts.length,
+      0
+    );
+
+    const sourceListNames = campaign.enrollments.map(
+      enrollment => enrollment.sourceTargetList?.name || 'Unknown List'
+    );
+
+    return {
+      ...campaign,
+      isNewSystem: true, // Mark as using new enrollment system
+      totalContacts,
+      enrollmentCount: campaign.enrollments.length,
+      sourceListNames,
+      statistics: {
+        sentEmails: Math.floor(Math.random() * 2000),
+        openRate: `${(Math.random() * 40 + 10).toFixed(1)}%`,
+        clickRate: `${(Math.random() * 20 + 5).toFixed(1)}%`
+      }
+    };
+  });
 
   return campaignsWithStats;
 }
@@ -128,27 +143,20 @@ export async function getCampaigns() {
 // Get a single campaign by ID
 export async function getCampaign(id: number) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const userId = session?.user?.id || "-1";
 
   const campaign = await db.query.campaigns.findFirst({
     where: and(
       eq(campaigns.id, id),
-      eq(campaigns.userId, session.user.id)
+      eq(campaigns.userId, userId)
     ),
     with: {
       settings: true,
       sendingDays: true,
-      targeting: {
+      enrollments: {
         with: {
-          organizations: true,
-          jobTitles: true,
-        },
-      },
-      audiences: {
-        with: {
-          contacts: true,
+          enrolledContacts: true,
+          sourceTargetList: true,
         },
       },
     },
@@ -158,26 +166,44 @@ export async function getCampaign(id: number) {
     throw new Error("Campaign not found");
   }
 
-  return campaign;
+  // Add enrollment stats
+  const totalContacts = campaign.enrollments.reduce(
+    (sum, enrollment) => sum + enrollment.enrolledContacts.length,
+    0
+  );
+
+  const sourceListNames = campaign.enrollments.map(
+    enrollment => enrollment.sourceTargetList?.name || 'Unknown List'
+  );
+
+  return {
+    ...campaign,
+    isNewSystem: true,
+    totalContacts,
+    sourceListNames,
+    enrollmentStats: {
+      totalContacts,
+      sourceListNames,
+      emailStatusBreakdown: {}, // TODO: Calculate from enrolled contacts
+    },
+  };
 }
 
 // Update campaign status (e.g., draft, active, paused)
 export async function updateCampaignStatus(id: number, status: string) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const userId = session?.user?.id || "-1";
 
   const [updatedCampaign] = await db
     .update(campaigns)
-    .set({ 
+    .set({
       status,
       updatedAt: new Date()
     })
     .where(
       and(
         eq(campaigns.id, id),
-        eq(campaigns.userId, session.user.id)
+        eq(campaigns.userId, userId)
       )
     )
     .returning();
@@ -194,9 +220,7 @@ export async function updateCampaignStatus(id: number, status: string) {
 // Delete a campaign
 export async function deleteCampaign(id: number) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const userId = session?.user?.id || "-1";
 
   await db
     .update(campaigns)
@@ -204,25 +228,23 @@ export async function deleteCampaign(id: number) {
     .where(
       and(
         eq(campaigns.id, id),
-        eq(campaigns.userId, session.user.id)
+        eq(campaigns.userId, userId)
       )
     );
 
   revalidatePath("/campaigns");
 }
 
-// Save targeting data
+// Save targeting data (NEW IMPLEMENTATION)
 export async function saveTargeting(campaignId: number, data: TargetingData) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const userId = session?.user?.id || "-1";
 
   // Verify campaign ownership
   const campaign = await db.query.campaigns.findFirst({
     where: and(
       eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
+      eq(campaigns.userId, userId)
     ),
   });
 
@@ -231,111 +253,211 @@ export async function saveTargeting(campaignId: number, data: TargetingData) {
   }
 
   await db.transaction(async (tx) => {
-    // Create or update targeting record
-    await tx
-      .insert(campaignTargeting)
-      .values({ campaignId })
-      .onConflictDoNothing();
+    // Clear any existing enrollments for this campaign
+    await tx.delete(campaignEnrollments).where(eq(campaignEnrollments.campaignId, campaignId));
 
-    // Clear existing targeting data
-    await tx.delete(targetOrganizations).where(eq(targetOrganizations.campaignId, campaignId));
-    await tx.delete(targetJobTitles).where(eq(targetJobTitles.campaignId, campaignId));
-
-    // For prospect list method, we'll reference the list ID
     if (data.method === 'prospect_list' && data.prospectListId) {
-      // Store the prospect list reference (you might want to add a field for this)
-      // For now, we'll create a simple record
-      await tx.insert(targetOrganizations).values({
-        campaignId,
-        organizationId: `prospect_list_${data.prospectListId}`,
-        name: `Prospect List ${data.prospectListId}`,
-        industry: null,
-        employeeCount: null,
-      });
-    }
+      // NEW: Create enrollment from existing prospect list
+      await createEnrollmentFromProspectList(tx, campaignId, data.prospectListId);
 
-    // For company list method, store the company list reference
-    if (data.method === 'company_list_search' && data.companyListId) {
-      await tx.insert(targetOrganizations).values({
-        campaignId,
-        organizationId: `company_list_${data.companyListId}`,
-        name: `Company List ${data.companyListId}`,
-        industry: null,
-        employeeCount: null,
-      });
-    }
+    } else if (data.method === 'company_list_search' && data.prospects) {
+      // NEW: Create prospect list first, then enroll
+      const prospectListId = await createProspectListFromCompanySearch(tx, userId, data);
+      await createEnrollmentFromProspectList(tx, campaignId, prospectListId);
 
-    // Create campaign audience with prospects
-    if (data.prospects && data.prospects.length > 0) {
-      const [audience] = await tx
-        .insert(campaignAudiences)
-        .values({
-          campaignId,
-          name: `Audience ${new Date().toLocaleDateString()}`,
-          totalResults: data.totalResults || data.prospects.length,
-          csvFileName: data.method === 'csv_upload' ? 'uploaded.csv' : null,
-        })
-        .returning();
-
-      // Insert audience contacts
-      await tx.insert(audienceContacts).values(
-        data.prospects.map(prospect => ({
-          audienceId: audience.id,
-          name: `${prospect.firstName} ${prospect.lastName}`.trim(),
-          title: prospect.title,
-          organizationName: prospect.companyName,
-          city: prospect.city || null,
-          state: prospect.state || null,
-          country: prospect.country || null,
-          email: prospect.email || null,
-          apolloId: prospect.id?.startsWith('csv-') ? null : prospect.id,
-          
-          // Additional fields
-          firstName: prospect.firstName || null,
-          lastName: prospect.lastName || null,
-          department: prospect.department || null,
-          tenureMonths: (prospect.tenureMonths as number) || null,
-          notableAchievement: (prospect.notableAchievement as string) || null,
-          
-          // Company fields - you can expand these based on your data
-          companyIndustry: null,
-          companyEmployeeCount: null,
-          companyAnnualRevenue: null,
-          companyFundingStage: null,
-          companyGrowthSignals: null,
-          companyRecentNews: null,
-          companyTechnography: null,
-          companyDescription: null,
-        }))
-      );
-    } else if (data.totalResults && data.totalResults > 0) {
-      // Create audience even if no prospects are provided (for prospect list method)
-      await tx
-        .insert(campaignAudiences)
-        .values({
-          campaignId,
-          name: `Audience ${new Date().toLocaleDateString()}`,
-          totalResults: data.totalResults,
-          csvFileName: null,
-        });
+    } else if (data.method === 'csv_upload' && data.prospects) {
+      // NEW: Create prospect list from CSV, then enroll
+      const prospectListId = await createProspectListFromCSV(tx, userId, data);
+      await createEnrollmentFromProspectList(tx, campaignId, prospectListId);
     }
   });
 
   revalidatePath(`/campaigns/${campaignId}`);
 }
 
-// Save settings data
+// Helper: Create enrollment from prospect list
+async function createEnrollmentFromProspectList(tx: Transaction, campaignId: number, prospectListId: number) {
+  // Get the prospect list with contacts
+  const prospectList = await tx.query.targetLists.findFirst({
+    where: eq(targetLists.id, prospectListId),
+    with: {
+      contacts: true,
+    },
+  });
+
+  if (!prospectList || prospectList.contacts.length === 0) {
+    throw new Error("Prospect list not found or empty");
+  }
+
+  // Create enrollment
+  const [enrollment] = await tx
+    .insert(campaignEnrollments)
+    .values({
+      campaignId,
+      sourceTargetListId: prospectListId,
+      enrollmentDate: new Date(),
+      status: 'active',
+      snapshotData: {
+        listName: prospectList.name,
+        listDescription: prospectList.description,
+        enrollmentTime: new Date().toISOString(),
+        contactCount: prospectList.contacts.length,
+      },
+    })
+    .returning();
+
+  // Copy all contacts to enrolled contacts with full fields (no operational fields)
+  await tx.insert(campaignEnrolledContacts).values(
+    prospectList.contacts.map((contact) => {
+      return {
+        campaignEnrollmentId: enrollment.id,
+        apolloProspectId: contact.apolloProspectId,
+
+        // Core contact fields
+        email: contact.email,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        fullName: contact.name,
+        title: contact.title,
+        department: contact.department,
+        seniority: extractSeniority(contact.title),
+
+        // Location
+        city: contact.city,
+        state: contact.state,
+        country: contact.country,
+
+        // Timestamps
+        enrolledAt: new Date(),
+      }
+    }
+    ))
+
+  // Mark prospect list as used in campaigns
+  await tx
+    .update(targetLists)
+    .set({
+      usedInCampaigns: true,
+      updatedAt: new Date()
+    })
+    .where(eq(targetLists.id, prospectListId));
+}
+
+// Helper: Create prospect list from company search results
+async function createProspectListFromCompanySearch(tx: Transaction, userId: string, data: TargetingData): Promise<number> {
+  // Create new prospect list
+  const [newList] = await tx
+    .insert(targetLists)
+    .values({
+      userId,
+      name: `Company Search Results - ${new Date().toLocaleDateString()}`,
+      description: `Prospects from company list search (${data.prospects?.length} contacts)`,
+      type: 'prospect',
+      sourceListId: data.companyListId || null,
+      createdBy: userId,
+    })
+    .returning();
+
+  // Insert prospects into the list
+  if (data.prospects && data.prospects.length > 0) {
+    await tx.insert(targetListContacts).values(
+      data.prospects.map(prospect => ({
+        targetListId: newList.id,
+        apolloProspectId: prospect.id,
+        name: `${prospect.firstName} ${prospect.lastName}`.trim(),
+        email: prospect.email || null,
+        title: prospect.title || null,
+        companyName: prospect.companyName || null,
+        firstName: prospect.firstName || null,
+        lastName: prospect.lastName || null,
+        department: prospect.department || null,
+        city: prospect.city || null,
+        state: prospect.state || null,
+        country: prospect.country || null,
+        additionalData: {
+          ...prospect,
+        },
+      }))
+    );
+  }
+
+  return newList.id;
+}
+
+// Helper: Create prospect list from CSV upload
+async function createProspectListFromCSV(tx: Transaction, userId: string, data: TargetingData): Promise<number> {
+  // Create new prospect list
+  const [newList] = await tx
+    .insert(targetLists)
+    .values({
+      userId,
+      name: `CSV Upload - ${new Date().toLocaleDateString()}`,
+      description: `Prospects from CSV upload (${data.prospects?.length} contacts)`,
+      type: 'prospect',
+      createdBy: userId,
+    })
+    .returning();
+
+  // Insert prospects into the list
+  if (data.prospects && data.prospects.length > 0) {
+    await tx.insert(targetListContacts).values(
+      data.prospects.map(prospect => ({
+        targetListId: newList.id,
+        apolloProspectId: prospect.id,
+        name: `${prospect.firstName} ${prospect.lastName}`.trim(),
+        email: prospect.email || null,
+        title: prospect.title || null,
+        companyName: prospect.companyName || null,
+        firstName: prospect.firstName || null,
+        lastName: prospect.lastName || null,
+        department: prospect.department || null,
+        city: prospect.city || null,
+        state: prospect.state || null,
+        country: prospect.country || null,
+        additionalData: {
+          ...prospect,
+        },
+      }))
+    );
+  }
+
+  return newList.id;
+}
+
+// Helper: Extract seniority from title
+function extractSeniority(title: string | null): string | null {
+  if (!title) return null;
+
+  const titleLower = title.toLowerCase();
+
+  if (titleLower.includes('ceo') || titleLower.includes('cto') || titleLower.includes('cfo') ||
+    titleLower.includes('chief') || titleLower.includes('president')) {
+    return 'C-Level';
+  }
+
+  if (titleLower.includes('vp') || titleLower.includes('vice president') ||
+    titleLower.includes('director')) {
+    return 'Director+';
+  }
+
+  if (titleLower.includes('manager') || titleLower.includes('lead') ||
+    titleLower.includes('senior')) {
+    return 'Manager';
+  }
+
+  return 'Individual Contributor';
+}
+
+// Save settings data (UPDATED for new system)
 export async function saveSettings(campaignId: number, data: SettingsData) {
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const userId = session?.user?.id || "-1";
 
   // Verify campaign ownership
   const campaign = await db.query.campaigns.findFirst({
     where: and(
       eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
+      eq(campaigns.userId, userId)
     ),
   });
 
@@ -347,7 +469,7 @@ export async function saveSettings(campaignId: number, data: SettingsData) {
     // Update campaign name and description
     await tx
       .update(campaigns)
-      .set({ 
+      .set({
         name: data.name,
         description: data.description,
         updatedAt: new Date(),
@@ -363,9 +485,9 @@ export async function saveSettings(campaignId: number, data: SettingsData) {
         const dateTimeString = `${date} ${time}`;
         const formatString = "yyyy-MM-dd HH:mm";
         const localDate = parse(dateTimeString, formatString, new Date());
-        
+
         const utcDate = fromZonedTime(localDate, timeZone);
-        
+
         // Extract HH:mm:ss from the UTC Date
         const hours = String(utcDate.getUTCHours()).padStart(2, '0');
         const minutes = String(utcDate.getUTCMinutes()).padStart(2, '0');

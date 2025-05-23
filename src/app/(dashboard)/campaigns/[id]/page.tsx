@@ -1,195 +1,399 @@
-// src/app/(dashboard)/campaigns/[id]/page.tsx - Minimal working version
-import { notFound } from "next/navigation";
-import { db as dbClient} from "@/lib/db";
-import { eq } from "drizzle-orm";
-import { AudienceDetails } from "@/components/audience/audience-details";
-import { CampaignHeader } from "@/components/campaign/campaign-header";
-import { CampaignSettingsDisplay } from "@/components/campaign/settings/CampaignSettingsDisplay";
+// src/app/(dashboard)/campaigns/[id]/page.tsx
+"use client";
 
-import { campaigns } from "@/lib/schema";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { 
+  Play, 
+  Pause, 
+  Settings, 
+  Users, 
+  Mail,
+  BarChart3,
+  Calendar,
+  AlertTriangle 
+} from "lucide-react";
 
-const db = await dbClient();
+import { CampaignSettingsDisplay } from "@/components/campaign/settings/CampaignSettingsDisplay";
+import { CampaignTargetingInfo } from "@/components/campaign/CampaignTargetingInfo";
+import { EmailPreviewDialog } from "@/components/campaign/email-preview-dialog";
 
-interface CampaignDetailsPageProps {
-  params: Promise<{ id: string }>; 
+import { getCampaign, updateCampaignStatus } from "@/lib/actions/campaign";
+import { getCampaignEnrollmentStats } from "@/lib/actions/campaignEnrollment";
+
+interface CampaignDetailPageData {
+  campaign: {
+    id: number;
+    name: string;
+    description: string | null;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+    isNewSystem: boolean;
+    totalContacts: number;
+    sourceListNames: string[];
+    settings?: {
+      id: number;
+      fromName: string;
+      fromEmail: string;
+      emailService: string;
+      timezone: string;
+      trackOpens: boolean;
+      trackClicks: boolean;
+      dailySendLimit: number;
+      unsubscribeLink: boolean;
+      sendingStartTime: string;
+      sendingEndTime: string;
+      startDate: Date;
+    };
+    sendingDays?: {
+      monday: boolean;
+      tuesday: boolean;
+      wednesday: boolean;
+      thursday: boolean;
+      friday: boolean;
+      saturday: boolean;
+      sunday: boolean;
+    };
+    enrollments?: Array<{
+      id: number;
+      sourceTargetListId: number;
+      sourceTargetListName: string;
+      enrollmentDate: Date;
+      contactCount: number;
+      status: string;
+      snapshotData: Record<string, unknown>;
+    }>;
+    enrollmentStats?: {
+      totalContacts: number;
+      sourceListNames: string[];
+      emailStatusBreakdown: Record<string, number>;
+      responseStatusBreakdown: Record<string, number>;
+    };
+  };
 }
 
-export default async function CampaignDetailsPage({ 
-  params 
-}: CampaignDetailsPageProps) {
-  // Parse campaign ID with proper error handling
-  const param = await params
-  const campaignId = parseInt(param.id);
+export default function CampaignDetailPage() {
+  const params = useParams();
+  const campaignId = parseInt(params.id as string);
   
-  if (isNaN(campaignId)) {
-    notFound();
-  }
-  
-  try {
-    console.log('Fetching campaign with only working relations...');
-    
-    // Only use relations that we know work
-    const campaign = await db.query.campaigns.findFirst({
-      where: eq(campaigns.id, campaignId),
-      with: {
-        settings: true,
-        sendingDays: true,
-        audiences: true,
-        // Skip problematic relations for now
-      },
-    });
+  const [data, setData] = useState<CampaignDetailPageData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
-    console.log('Campaign fetched successfully');
 
-    if (!campaign) {
-      notFound();
-    }
 
-    // Get additional data with simple queries (no relations)
-    const targeting = await db.query.campaignTargeting.findFirst({
-      where: (campaignTargeting, { eq }) => eq(campaignTargeting.campaignId, campaignId),
-    });
-
-    const targetOrganizations = targeting ? await db.query.targetOrganizations.findMany({
-      where: (targetOrganizations, { eq }) => eq(targetOrganizations.campaignId, campaignId),
-    }) : [];
-
-    const targetJobTitles = targeting ? await db.query.targetJobTitles.findMany({
-      where: (targetJobTitles, { eq }) => eq(targetJobTitles.campaignId, campaignId),
-    }) : [];
+  const loadCampaignData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
       
-    const audience = campaign?.audiences?.[0] || null;
+      // Load campaign with enrollment data
+      const campaign = await getCampaign(campaignId);
+      
+      // Load enrollment stats if using new system
+      let enrollmentStats;
+      if (campaign.isNewSystem) {
+        try {
+          enrollmentStats = await getCampaignEnrollmentStats(campaignId);
+        } catch (statsError) {
+          console.warn("Could not load enrollment stats:", statsError);
+        }
+      }
+      
+      setData({
+        campaign: {
+          ...campaign,
+          enrollments: campaign.enrollments?.map(enrollment => ({
+            id: enrollment.id,
+            sourceTargetListId: enrollment.sourceTargetListId,
+            sourceTargetListName: enrollment.sourceTargetList.name,
+            enrollmentDate: enrollment.enrollmentDate,
+            contactCount: enrollment.enrolledContacts.length,
+            status: enrollment.status,
+            snapshotData: enrollment.snapshotData as Record<string, unknown>,
+          })),
+          enrollmentStats,
+        },
+      });
+    } catch (error) {
+      console.error("Error loading campaign:", error);
+      setError("Failed to load campaign details");
+      toast.error("Failed to load campaign details");
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId]);
+
+   useEffect(() => {
+    loadCampaignData();
+  }, [loadCampaignData]);
+
+  const handleStatusUpdate = async (newStatus: string) => {
+    if (!data?.campaign) return;
     
+    try {
+      setUpdatingStatus(true);
+      await updateCampaignStatus(campaignId, newStatus);
+      
+      // Update local state
+      setData(prev => prev ? {
+        ...prev,
+        campaign: {
+          ...prev.campaign,
+          status: newStatus,
+        },
+      } : null);
+      
+      toast.success(`Campaign ${newStatus === 'running' ? 'started' : 'paused'} successfully`);
+    } catch (error) {
+      console.error("Error updating campaign status:", error);
+      toast.error("Failed to update campaign status");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="space-y-6">
-        <CampaignHeader 
-          campaignId={campaignId} 
-          campaignName={campaign?.name || ""}
-          campaignStatus={campaign?.status || ""}
-        />
+        <div className="flex justify-between items-center">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
         
         <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{campaign.name}</CardTitle>
-              <div className="flex items-center gap-2">
-                <Badge variant={campaign.status === 'active' ? 'default' : 'secondary'}>
-                  {campaign.status}
-                </Badge>
-                <span className="text-sm text-muted-foreground">
-                  Created {new Date(campaign.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-              {campaign.description && (
-                <CardDescription>{campaign.description}</CardDescription>
-              )}
-            </CardHeader>
-          </Card>
-
-          <Tabs defaultValue="audience" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="audience">Audience</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="audience" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Target Audience</CardTitle>
-                  <CardDescription>
-                    People and organizations targeted by this campaign
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {audience ? (
-                    <AudienceDetails audienceId={audience.id} />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No audience has been created for this campaign yet.
-                    </p>
-                  )}
-                  
-                  {targeting && (
-                    <div className="mt-6 space-y-4">
-                      <h4 className="font-medium">Targeting Information</h4>
-                      
-                      {targetOrganizations.length > 0 && (
-                        <div>
-                          <h5 className="text-sm font-medium text-muted-foreground mb-2">Organizations</h5>
-                          <div className="space-y-2">
-                            {targetOrganizations.map((org) => (
-                              <div key={org.id} className="border rounded p-3">
-                                <p className="font-medium">{org.name}</p>
-                                {org.industry && <p className="text-sm text-muted-foreground">Industry: {org.industry}</p>}
-                                {org.employeeCount && <p className="text-sm text-muted-foreground">Size: {org.employeeCount}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {targetJobTitles.length > 0 && (
-                        <div>
-                          <h5 className="text-sm font-medium text-muted-foreground mb-2">Job Titles</h5>
-                          <div className="flex flex-wrap gap-2">
-                            {targetJobTitles.map((title) => (
-                              <Badge key={title.id} variant="outline">{title.title}</Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          
-            
-            <TabsContent value="settings" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Campaign Settings</CardTitle>
-                  <CardDescription>
-                    Email configuration, scheduling, and tracking settings
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {campaign.settings ? (
-                    <CampaignSettingsDisplay 
-                      settings={campaign.settings}
-                      sendingDays={campaign.sendingDays}
-                    />
-                  ) : (
-                    <p className="text-muted-foreground">
-                      No settings have been configured for this campaign.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <Skeleton className="h-48" />
+          <Skeleton className="h-64" />
+          <Skeleton className="h-32" />
         </div>
       </div>
     );
-  } catch (error) {
-    console.error("Error loading campaign:", error);
+  }
+
+  if (error || !data?.campaign) {
     return (
-      <div>
-        <h1>Error Loading Campaign</h1>
-        <p>There was an error loading the campaign details.</p>
-        <pre className="bg-red-100 p-4 rounded mt-4 text-sm">
-          {error instanceof Error ? error.message : 'Unknown error'}
-        </pre>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <AlertTriangle className="h-10 w-10 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Error Loading Campaign</h3>
+            <p className="text-muted-foreground mb-4">
+              {error || "Campaign not found"}
+            </p>
+            <Button onClick={loadCampaignData}>Try Again</Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
+
+  const { campaign } = data;
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+      draft: 'secondary',
+      scheduled: 'outline',
+      running: 'default',
+      paused: 'destructive',
+      completed: 'outline',
+    } as const;
+    return (
+      <Badge variant={variants[status] ?? 'secondary'}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
+
+  const canStart = ['draft', 'paused'].includes(campaign.status);
+  const canPause = campaign.status === 'running';
+
+  return (
+    <div className="space-y-6">
+      {/* Campaign Header */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold">{campaign.name}</h1>
+          {campaign.description && (
+            <p className="text-muted-foreground mt-1">{campaign.description}</p>
+          )}
+          <div className="flex items-center gap-3 mt-3">
+            {getStatusBadge(campaign.status)}
+            {campaign.isNewSystem && (
+              <Badge variant="outline" className="text-xs">
+                New System
+              </Badge>
+            )}
+            <span className="text-sm text-muted-foreground">
+              Created {new Date(campaign.createdAt).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setEmailPreviewOpen(true)}
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            Preview Emails
+          </Button>
+          
+          {canStart && (
+            <Button
+              onClick={() => handleStatusUpdate('running')}
+              disabled={updatingStatus}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              {updatingStatus ? 'Starting...' : 'Start Campaign'}
+            </Button>
+          )}
+          
+          {canPause && (
+            <Button
+              variant="outline"
+              onClick={() => handleStatusUpdate('paused')}
+              disabled={updatingStatus}
+            >
+              <Pause className="mr-2 h-4 w-4" />
+              {updatingStatus ? 'Pausing...' : 'Pause Campaign'}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Campaign Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-2xl font-bold">{campaign.totalContacts}</p>
+                <p className="text-xs text-muted-foreground">Total Contacts</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-2xl font-bold">
+                  {campaign.enrollmentStats?.emailStatusBreakdown?.sent || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Emails Sent</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-2xl font-bold">
+                  {campaign.enrollmentStats?.emailStatusBreakdown?.opened || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Opened</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-2xl font-bold">
+                  {campaign.enrollments?.length || 0}
+                </p>
+                <p className="text-xs text-muted-foreground">Source Lists</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Campaign Targeting Information */}
+      <CampaignTargetingInfo campaign={campaign} />
+
+      {/* Campaign Settings */}
+      {campaign.settings && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Campaign Settings
+            </CardTitle>
+            <CardDescription>
+              Email configuration and sending schedule
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CampaignSettingsDisplay 
+              settings={campaign.settings}
+              sendingDays={campaign.sendingDays}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Email Performance (if campaign is active) */}
+      {campaign.status === 'running' && campaign.enrollmentStats?.emailStatusBreakdown && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Email Performance
+            </CardTitle>
+            <CardDescription>
+              Real-time campaign performance metrics
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {Object.entries(campaign.enrollmentStats.emailStatusBreakdown).map(([status, count]) => (
+                <div key={status} className="text-center">
+                  <p className="text-2xl font-bold">{count}</p>
+                  <p className="text-sm text-muted-foreground capitalize">
+                    {status.replace('_', ' ')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Email Preview Dialog */}
+      <EmailPreviewDialog
+        open={emailPreviewOpen}
+        onOpenChange={setEmailPreviewOpen}
+        campaignId={campaignId}
+        campaignName={campaign.name}
+      />
+    </div>
+  );
 }

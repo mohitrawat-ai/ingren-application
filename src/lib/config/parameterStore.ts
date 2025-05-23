@@ -25,6 +25,10 @@ class ParameterStoreConfig {
       return;
     }
 
+    if(process.env.BUILD === 'development') {
+      return;
+    }
+
     try {
       const path = '/ingren/dev/';
       const command = new GetParametersByPathCommand({

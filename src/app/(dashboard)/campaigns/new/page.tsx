@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckIcon, ArrowLeft } from "lucide-react";
 
@@ -15,23 +15,68 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-import { TargetingForm } from "@/components/campaign/targeting-form";
+import { CampaignTargetingStep } from "@/components/campaign/targeting/CampaignTargetingStep";
 import { CampaignSettingsStep } from "@/components/campaign/settings/CampaignSettingsStep";
 import { CampaignReviewStep } from "@/components/campaign/review/CampaignReviewStep";
 
-import { createCampaign, saveSettings } from "@/lib/actions/campaign";
-import { createAudience } from "@/lib/actions/audience";
-import { markProspectListAsUsedInCampaigns } from "@/lib/actions/prospect";
+import { 
+  createCampaign, 
+  saveTargeting, 
+  saveSettings,
+  updateCampaignStatus 
+} from "@/lib/actions/campaign";
 import { cn } from "@/lib/utils";
+import { Prospect } from "@/types";
 
-import { TargetingFormData, SettingsFormData } from "@/types";
+// Type definitions for targeting methods
+type TargetingMethod = 'prospect_list' | 'company_list_search' | 'csv_upload';
 
-type Step = 'targeting' | 'settings' | 'review';
+interface CampaignTargetingData {
+  method: TargetingMethod;
+  prospectListId?: number;
+  prospectListName?: string;
+  companyListId?: number;
+  companyListName?: string;
+  prospects?: Array<Prospect>;
+  totalProspects?: number;
+}
+
+interface SettingsData {
+  name: string;
+  description?: string;
+  emailSettings: {
+    fromName: string;
+    fromEmail: string;
+    emailService: string;
+  };
+  campaignSettings: {
+    timezone: string;
+    trackOpens: boolean;
+    trackClicks: boolean;
+    dailySendLimit: number;
+    unsubscribeLink: boolean;
+    sendingDays: {
+      monday: boolean;
+      tuesday: boolean;
+      wednesday: boolean;
+      thursday: boolean;
+      friday: boolean;
+      saturday: boolean;
+      sunday: boolean;
+    };
+    sendingTime: {
+      startTime: string;
+      endTime: string;
+    };
+  };
+}
 
 interface CampaignFormData {
-  targeting: TargetingFormData | null;
-  settings: SettingsFormData | null;
+  targeting: CampaignTargetingData | null;
+  settings: SettingsData | null;
 }
+
+type Step = 'targeting' | 'settings' | 'review';
 
 const steps: { key: Step; title: string; description: string }[] = [
   {
@@ -53,7 +98,6 @@ const steps: { key: Step; title: string; description: string }[] = [
 
 export default function NewCampaignPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   
   const [currentStep, setCurrentStep] = useState<Step>('targeting');
   const [campaignId, setCampaignId] = useState<number | null>(null);
@@ -67,44 +111,6 @@ export default function NewCampaignPage() {
 
   // Get current step index
   const currentStepIndex = steps.findIndex(step => step.key === currentStep);
-
-  // Default targeting data
-  const defaultTargetingData: TargetingFormData = {
-    organizations: [],
-    jobTitles: [],
-    contacts: [],
-  };
-
-  // Default settings data
-  const defaultSettingsData: SettingsFormData = {
-    name: "",
-    description: "",
-    emailSettings: {
-      fromName: "",
-      fromEmail: "",
-      emailService: "",
-    },
-    campaignSettings: {
-      timezone: "UTC",
-      trackOpens: true,
-      trackClicks: true,
-      dailySendLimit: 500,
-      unsubscribeLink: true,
-      sendingTime: {
-        startTime: "09:00",
-        endTime: "17:00",
-      },
-      sendingDays: {
-        monday: true,
-        tuesday: true,
-        wednesday: true,
-        thursday: true,
-        friday: true,
-        saturday: false,
-        sunday: false,
-      },
-    },
-  };
 
   // Handle step navigation
   const goToStep = (step: Step) => {
@@ -132,7 +138,7 @@ export default function NewCampaignPage() {
   };
 
   // Handle targeting form submission
-  const handleTargetingSubmit = async (data: TargetingFormData) => {
+  const handleTargetingSubmit = async (data: CampaignTargetingData) => {
     setIsSubmitting(true);
     
     try {
@@ -144,38 +150,32 @@ export default function NewCampaignPage() {
         setCampaignId(currentCampaignId);
       }
 
-      // Create audience
-      await createAudience({
-        campaignId: currentCampaignId,
-        name: `Audience ${new Date().toLocaleDateString()}`,
-        contacts: data.contacts,
-        organizations: data.organizations,
-        jobTitles: data.jobTitles,
-        totalResults: data.totalResults || data.contacts.length,
-        csvFileName: data.csvFileName
-      });
+      // Convert targeting data to the format expected by saveTargeting
+      const targetingPayload = {
+        method: data.method,
+        prospectListId: data.prospectListId,
+        companyListId: data.companyListId,
+        prospects: data.prospects || [],
+        totalResults: data.totalProspects || 0,
+      };
 
-      // Mark prospect list as used if applicable
-      const prospectListId = searchParams?.get('prospectList');
-      if (prospectListId) {
-        await markProspectListAsUsedInCampaigns(parseInt(prospectListId));
-      }
+      await saveTargeting(currentCampaignId, targetingPayload);
 
       // Save form data and proceed
       setFormData(prev => ({ ...prev, targeting: data }));
-      toast.success("Audience created successfully");
+      toast.success("Targeting saved successfully");
       goToNextStep();
       
     } catch (error) {
       console.error("Error in targeting step:", error);
-      toast.error("Failed to create audience");
+      toast.error("Failed to save targeting");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Handle settings form submission
-  const handleSettingsSubmit = async (data: SettingsFormData) => {
+  const handleSettingsSubmit = async (data: SettingsData) => {
     if (!campaignId) {
       toast.error("Campaign not found");
       return;
@@ -184,25 +184,16 @@ export default function NewCampaignPage() {
     setIsSubmitting(true);
     
     try {
-      // Convert settings data to the format expected by saveSettings
-      const settingsData = {
-        emailSettings: data.emailSettings,
-        campaignSettings: {
-          name: data.name,
-          ...data.campaignSettings,
-        },
-      };
-
-      await saveSettings(campaignId, settingsData);
+      await saveSettings(campaignId, data);
       
       // Save form data and proceed
       setFormData(prev => ({ ...prev, settings: data }));
-      toast.success("Campaign settings saved successfully");
+      toast.success("Settings saved successfully");
       goToNextStep();
       
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save campaign settings");
+      toast.error("Failed to save settings");
     } finally {
       setIsSubmitting(false);
     }
@@ -218,7 +209,9 @@ export default function NewCampaignPage() {
     setIsSubmitting(true);
     
     try {
-      // Campaign is already created and configured, just redirect
+      // Mark campaign as ready/active
+      await updateCampaignStatus(campaignId, "active");
+      
       toast.success("Campaign created successfully!");
       router.push(`/campaigns/${campaignId}`);
     } catch (error) {
@@ -354,11 +347,14 @@ export default function NewCampaignPage() {
           {/* Step Content */}
           <div className="mt-8">
             {currentStep === 'targeting' && (
-              <TargetingForm 
-                onSubmit={handleTargetingSubmit} 
-                isSubmitting={isSubmitting}
-                initialData={formData.targeting || defaultTargetingData}
-                campaignId={campaignId || 0}
+              <CampaignTargetingStep
+                data={formData.targeting || {
+                  method: 'prospect_list',
+                  totalProspects: 0,
+                }}
+                onChange={(data) => setFormData(prev => ({ ...prev, targeting: data }))}
+                onNext={() => handleTargetingSubmit(formData.targeting!)}
+                onBack={() => {}} // No back button on first step
               />
             )}
             
@@ -366,17 +362,62 @@ export default function NewCampaignPage() {
               <CampaignSettingsStep 
                 onSubmit={handleSettingsSubmit}
                 isSubmitting={isSubmitting}
-                initialData={formData.settings || defaultSettingsData}
+                initialData={formData.settings || {
+                  name: "",
+                  description: "",
+                  emailSettings: {
+                    fromName: "",
+                    fromEmail: "",
+                    emailService: "",
+                  },
+                  campaignSettings: {
+                    timezone: "UTC",
+                    trackOpens: true,
+                    trackClicks: true,
+                    dailySendLimit: 500,
+                    unsubscribeLink: true,
+                    sendingDays: {
+                      monday: true,
+                      tuesday: true,
+                      wednesday: true,
+                      thursday: true,
+                      friday: true,
+                      saturday: false,
+                      sunday: false,
+                    },
+                    sendingTime: {
+                      startTime: "09:00",
+                      endTime: "17:00",
+                    },
+                  },
+                }}
               />
             )}
             
-            {currentStep === 'review' && (
+            {currentStep === 'review' && formData.targeting && formData.settings && (
               <CampaignReviewStep
-                campaignId={campaignId}
-                targetingData={formData.targeting}
-                settingsData={formData.settings}
-                onCreateCampaign={handleCreateCampaign}
-                isSubmitting={isSubmitting}
+                formData={{
+                  name: formData.settings.name,
+                  description: formData.settings.description,
+                  targeting: formData.targeting,
+                  settings: {
+                    fromName: formData.settings.emailSettings.fromName,
+                    fromEmail: formData.settings.emailSettings.fromEmail,
+                    emailService: formData.settings.emailSettings.emailService,
+                    timezone: formData.settings.campaignSettings.timezone,
+                    trackOpens: formData.settings.campaignSettings.trackOpens,
+                    trackClicks: formData.settings.campaignSettings.trackClicks,
+                    dailySendLimit: formData.settings.campaignSettings.dailySendLimit,
+                    unsubscribeLink: formData.settings.campaignSettings.unsubscribeLink,
+                    sendingStartTime: formData.settings.campaignSettings.sendingTime.startTime,
+                    sendingEndTime: formData.settings.campaignSettings.sendingTime.endTime,
+                    startDate: new Date(),
+                  },
+                  sendingDays: formData.settings.campaignSettings.sendingDays
+                }}
+                onBack={goToPreviousStep}
+                onCreate={handleCreateCampaign}
+                creating={isSubmitting}
               />
             )}
           </div>

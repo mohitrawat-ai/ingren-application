@@ -1,3 +1,4 @@
+// src/lib/actions/campaign.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -7,32 +8,70 @@ import {
   campaigns,
   campaignSettings,
   campaignSendingDays,
-  campaignPitch,
-  pitchFeatures,
   campaignTargeting,
   targetOrganizations,
   targetJobTitles,
   campaignAudiences,
-  audienceContacts,
-  campaignOutreach,
-  ctaOptions,
-  personalizationSources,
-  campaignEnrollments,
-  campaignEnrolledContacts,
-  targetLists
+  audienceContacts
 } from "@/lib/schema";
-import { eq, and, ne, sql } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
-import { 
-  OutreachFormData, 
-  SettingsFormData, 
-  PitchFormData,
-  WorkflowFormData,
-  TargetingFormData
-} from "@/types";
 
 const db = await dbClient();
+
+// Simple type definitions for this module
+type TargetingMethod = 'prospect_list' | 'company_list_search' | 'csv_upload';
+
+interface TargetingData {
+  method: TargetingMethod;
+  prospectListId?: number;
+  companyListId?: number;
+  prospects?: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    title: string;
+    companyName: string;
+    department?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    [key: string]: unknown;
+  }>;
+  totalResults?: number;
+}
+
+interface SettingsData {
+  name: string;
+  description?: string;
+  emailSettings: {
+    fromName: string;
+    fromEmail: string;
+    emailService: string;
+  };
+  campaignSettings: {
+    timezone: string;
+    trackOpens: boolean;
+    trackClicks: boolean;
+    dailySendLimit: number;
+    unsubscribeLink: boolean;
+    sendingDays: {
+      monday: boolean;
+      tuesday: boolean;
+      wednesday: boolean;
+      thursday: boolean;
+      friday: boolean;
+      saturday: boolean;
+      sunday: boolean;
+    };
+    sendingTime: {
+      startTime: string;
+      endTime: string;
+    };
+  };
+}
 
 // Create a new campaign
 export async function createCampaign(name: string) {
@@ -63,12 +102,13 @@ export async function getCampaigns() {
 
   const campaignsList = await db.query.campaigns.findMany({
     where: and(
-        eq(campaigns.userId, session.user.id),
-        ne(campaigns.status, "deleted")
+      eq(campaigns.userId, session.user.id),
+      ne(campaigns.status, "deleted")
     ),
     orderBy: [campaigns.createdAt],
     with: {
       settings: true,
+      audiences: true,
     },
   });
 
@@ -106,15 +146,9 @@ export async function getCampaign(id: number) {
           jobTitles: true,
         },
       },
-      pitch: {
+      audiences: {
         with: {
-          features: true,
-        },
-      },
-      outreach: {
-        with: {
-          ctaOptions: true,
-          personalizationSources: true,
+          contacts: true,
         },
       },
     },
@@ -136,7 +170,10 @@ export async function updateCampaignStatus(id: number, status: string) {
 
   const [updatedCampaign] = await db
     .update(campaigns)
-    .set({ status })
+    .set({ 
+      status,
+      updatedAt: new Date()
+    })
     .where(
       and(
         eq(campaigns.id, id),
@@ -150,6 +187,7 @@ export async function updateCampaignStatus(id: number, status: string) {
   }
 
   revalidatePath(`/campaigns`);
+  revalidatePath(`/campaigns/${id}`);
   return updatedCampaign;
 }
 
@@ -160,7 +198,6 @@ export async function deleteCampaign(id: number) {
     throw new Error("Unauthorized");
   }
 
-  // Rather than deleting the campaign, we can just update the status to "deleted"
   await db
     .update(campaigns)
     .set({ status: "deleted" })
@@ -174,11 +211,8 @@ export async function deleteCampaign(id: number) {
   revalidatePath("/campaigns");
 }
 
-// Save targeting data (Legacy - for backward compatibility with existing audience system)
-export async function saveTargeting(
-  campaignId: number,
-  data: TargetingFormData
-) {
+// Save targeting data
+export async function saveTargeting(campaignId: number, data: TargetingData) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
@@ -207,334 +241,91 @@ export async function saveTargeting(
     await tx.delete(targetOrganizations).where(eq(targetOrganizations.campaignId, campaignId));
     await tx.delete(targetJobTitles).where(eq(targetJobTitles.campaignId, campaignId));
 
-    // Insert new targeting data
-    if (data.organizations?.length) {
-      await tx.insert(targetOrganizations).values(
-        data.organizations.map(org => ({
-          campaignId,
-          organizationId: org.id,
-          name: org.name,
-          industry: org.industry || null,
-          employeeCount: org.employeeCount || null,
-        }))
-      );
-    }
-
-    if (data.jobTitles?.length) {
-      await tx.insert(targetJobTitles).values(
-        data.jobTitles.map(title => ({
-          campaignId,
-          title,
-        }))
-      );
-    }
-
-    // Create campaign audience (Legacy system)
-    const [audience] = await tx
-      .insert(campaignAudiences)
-      .values({
+    // For prospect list method, we'll reference the list ID
+    if (data.method === 'prospect_list' && data.prospectListId) {
+      // Store the prospect list reference (you might want to add a field for this)
+      // For now, we'll create a simple record
+      await tx.insert(targetOrganizations).values({
         campaignId,
-        name: `Audience ${new Date().toLocaleDateString()}`,
-        totalResults: data.totalResults || 0,
-        csvFileName: data.csvFileName || null,
-      })
-      .returning();
-
-    // Insert audience contacts
-    if (data.contacts.length) {
-      await tx.insert(audienceContacts).values(
-        data.contacts.map(contact => ({
-          audienceId: audience.id,
-          name: contact.name,
-          title: contact.title,
-          organizationName: contact.organization.name,
-          city: contact.city || null,
-          state: contact.state || null,
-          country: contact.country || null,
-          email: contact.email || null,
-          apolloId: contact.id?.startsWith('csv-') ? null : contact.id,
-          // Additional prospect fields
-          firstName: contact.first_name as string || null,
-          lastName: contact.last_name as string || null,
-          department: contact.department as string|| null,
-          tenureMonths: contact.tenure_months as number|| null,
-          notableAchievement: contact.notable_achievement as string|| null,
-          // Additional company fields
-          companyIndustry: contact.company_industry as string|| null,
-          companyEmployeeCount: contact.company_employee_count as string|| null,
-          companyAnnualRevenue: contact.company_annual_revenue as string|| null,
-          companyFundingStage: contact.company_funding_stage as string|| null,
-          companyGrowthSignals: contact.company_growth_signals as string|| null,
-          companyRecentNews: contact.company_recent_news as string|| null,
-          companyTechnography: contact.company_technography as string|| null,
-          companyDescription: contact.company_description as string|| null,
-        }))
-      );
-    }
-  });
-
-  revalidatePath(`/campaigns/${campaignId}`);
-}
-
-// New function to create campaign enrollment from prospect list
-export async function createCampaignEnrollment(
-  campaignId: number,
-  prospectListId: number
-) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  // Verify campaign ownership
-  const campaign = await db.query.campaigns.findFirst({
-    where: and(
-      eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
-    ),
-  });
-
-  if (!campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  // Get the prospect list with contacts
-  const prospectList = await db.query.targetLists.findFirst({
-    where: and(
-      eq(targetLists.id, prospectListId),
-      eq(targetLists.userId, session.user.id),
-      eq(targetLists.type, 'prospect')
-    ),
-    with: {
-      contacts: true,
-    },
-  });
-
-  if (!prospectList) {
-    throw new Error("Prospect list not found");
-  }
-
-  // Create enrollment with data snapshot
-  await db.transaction(async (tx) => {
-    // Create the enrollment record
-    const [enrollment] = await tx
-      .insert(campaignEnrollments)
-      .values({
-        campaignId,
-        sourceTargetListId: prospectListId,
-        enrollmentDate: new Date(),
-        status: 'active',
-        snapshotData: {
-          listName: prospectList.name,
-          listDescription: prospectList.description,
-          enrollmentDate: new Date().toISOString(),
-          contactCount: prospectList.contacts.length,
-        },
-      })
-      .returning();
-
-    // Insert enrolled contacts with snapshot data
-    if (prospectList.contacts.length > 0) {
-      await tx.insert(campaignEnrolledContacts).values(
-        prospectList.contacts.map(contact => ({
-          campaignEnrollmentId: enrollment.id,
-          apolloProspectId: contact.apolloProspectId,
-          contactSnapshot: {
-            name: contact.name,
-            email: contact.email,
-            title: contact.title,
-            companyName: contact.companyName,
-            firstName: contact.firstName,
-            lastName: contact.lastName,
-            department: contact.department,
-            city: contact.city,
-            state: contact.state,
-            country: contact.country,
-            additionalData: contact.additionalData,
-          },
-          emailStatus: 'pending',
-        }))
-      );
-    }
-
-    // Mark the prospect list as used in campaigns
-    await tx
-      .update(targetLists)
-      .set({
-        usedInCampaigns: true,
-        campaignCount: sql`campaign_count + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(targetLists.id, prospectListId));
-  });
-
-  revalidatePath(`/campaigns/${campaignId}`);
-  revalidatePath("/prospect-lists");
-  revalidatePath(`/prospect-lists/${prospectListId}`);
-}
-
-// Save pitch data
-export async function savePitch(
-  campaignId: number,
-  data: PitchFormData
-) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  // Verify campaign ownership
-  const campaign = await db.query.campaigns.findFirst({
-    where: and(
-      eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
-    ),
-  });
-
-  if (!campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  await db.transaction(async (tx) => {
-    // Create or update pitch
-    const [pitch] = await tx
-      .insert(campaignPitch)
-      .values({
-        campaignId,
-        companyUrl: data.url,
-        companyDescription: data.description,
-      })
-      .onConflictDoUpdate({
-        target: [campaignPitch.campaignId],
-        set: {
-          companyUrl: data.url,
-          companyDescription: data.description,
-        },
-      })
-      .returning();
-
-    // Clear existing features
-    await tx.delete(pitchFeatures).where(eq(pitchFeatures.pitchId, pitch.id));
-
-    // Insert new features
-    if (data.features.length) {
-      await tx.insert(pitchFeatures).values(
-        data.features.map(feature => ({
-          pitchId: pitch.id,
-          problem: feature.problem,
-          solution: feature.solution,
-        }))
-      );
-    }
-  });
-
-  revalidatePath(`/campaigns/${campaignId}`);
-}
-
-// Save outreach data
-export async function saveOutreach(
-  campaignId: number,
-  data: OutreachFormData
-) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-  
-  // Verify campaign ownership
-  const campaign = await db.query.campaigns.findFirst({
-    where: and(
-      eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
-    ),
-  });
-
-  if (!campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  await db.transaction(async (tx) => {
-    // Create or update outreach
-    await tx
-      .insert(campaignOutreach)
-      .values({
-        campaignId,
-        messageTone: data.messageTone,
-        selectedCta: data.selectedCta,
-      })
-      .onConflictDoUpdate({
-        target: [campaignOutreach.campaignId],
-        set: {
-          messageTone: data.messageTone,
-          selectedCta: data.selectedCta,
-        },
+        organizationId: `prospect_list_${data.prospectListId}`,
+        name: `Prospect List ${data.prospectListId}`,
+        industry: null,
+        employeeCount: null,
       });
-
-    // Clear existing CTA options and personalization sources
-    await tx.delete(ctaOptions).where(eq(ctaOptions.campaignId, campaignId));
-    await tx.delete(personalizationSources).where(eq(personalizationSources.campaignId, campaignId));
-
-    // Insert new CTA options
-    if (data.ctaOptions.length) {
-      await tx.insert(ctaOptions).values(
-        data.ctaOptions.map(option => ({
-          campaignId,
-          label: option.label,
-          sourceId: option.id,
-        }))
-      );
     }
 
-    // Insert new personalization sources
-    if (data.personalizationSources.length) {
-      await tx.insert(personalizationSources).values(
-        data.personalizationSources.map(source => ({
+    // For company list method, store the company list reference
+    if (data.method === 'company_list_search' && data.companyListId) {
+      await tx.insert(targetOrganizations).values({
+        campaignId,
+        organizationId: `company_list_${data.companyListId}`,
+        name: `Company List ${data.companyListId}`,
+        industry: null,
+        employeeCount: null,
+      });
+    }
+
+    // Create campaign audience with prospects
+    if (data.prospects && data.prospects.length > 0) {
+      const [audience] = await tx
+        .insert(campaignAudiences)
+        .values({
           campaignId,
-          label: source.label,
-          enabled: source.enabled ? 1 : 0,
-          sourceId: source.id,
+          name: `Audience ${new Date().toLocaleDateString()}`,
+          totalResults: data.totalResults || data.prospects.length,
+          csvFileName: data.method === 'csv_upload' ? 'uploaded.csv' : null,
+        })
+        .returning();
+
+      // Insert audience contacts
+      await tx.insert(audienceContacts).values(
+        data.prospects.map(prospect => ({
+          audienceId: audience.id,
+          name: `${prospect.firstName} ${prospect.lastName}`.trim(),
+          title: prospect.title,
+          organizationName: prospect.companyName,
+          city: prospect.city || null,
+          state: prospect.state || null,
+          country: prospect.country || null,
+          email: prospect.email || null,
+          apolloId: prospect.id?.startsWith('csv-') ? null : prospect.id,
+          
+          // Additional fields
+          firstName: prospect.firstName || null,
+          lastName: prospect.lastName || null,
+          department: prospect.department || null,
+          tenureMonths: (prospect.tenureMonths as number) || null,
+          notableAchievement: (prospect.notableAchievement as string) || null,
+          
+          // Company fields - you can expand these based on your data
+          companyIndustry: null,
+          companyEmployeeCount: null,
+          companyAnnualRevenue: null,
+          companyFundingStage: null,
+          companyGrowthSignals: null,
+          companyRecentNews: null,
+          companyTechnography: null,
+          companyDescription: null,
         }))
       );
+    } else if (data.totalResults && data.totalResults > 0) {
+      // Create audience even if no prospects are provided (for prospect list method)
+      await tx
+        .insert(campaignAudiences)
+        .values({
+          campaignId,
+          name: `Audience ${new Date().toLocaleDateString()}`,
+          totalResults: data.totalResults,
+          csvFileName: null,
+        });
     }
   });
-
-  revalidatePath(`/campaigns/${campaignId}`);
-}
-
-// Save workflow data
-export async function saveWorkflow(
-  campaignId: number,
-  data: WorkflowFormData
-) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  // Verify campaign ownership
-  const campaign = await db.query.campaigns.findFirst({
-    where: and(
-      eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
-    ),
-  });
-
-  if (!campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  // TODO : For now, we'll store workflow data in the campaign metadata
-  // In the future, this could be expanded to a dedicated workflow table
-  console.log(data);
 
   revalidatePath(`/campaigns/${campaignId}`);
 }
 
 // Save settings data
-export async function saveSettings(
-  campaignId: number,
-  data: SettingsFormData
-) {
+export async function saveSettings(campaignId: number, data: SettingsData) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
@@ -553,11 +344,12 @@ export async function saveSettings(
   }
 
   await db.transaction(async (tx) => {
-    // Update campaign name
+    // Update campaign name and description
     await tx
       .update(campaigns)
       .set({ 
         name: data.name,
+        description: data.description,
         updatedAt: new Date(),
       })
       .where(eq(campaigns.id, campaignId));
@@ -651,113 +443,4 @@ export async function saveSettings(
   });
 
   revalidatePath(`/campaigns/${campaignId}`);
-}
-
-// Get campaign enrollments
-export async function getCampaignEnrollments(campaignId: number) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  // Verify campaign ownership
-  const campaign = await db.query.campaigns.findFirst({
-    where: and(
-      eq(campaigns.id, campaignId),
-      eq(campaigns.userId, session.user.id)
-    ),
-  });
-
-  if (!campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  const enrollments = await db.query.campaignEnrollments.findMany({
-    where: eq(campaignEnrollments.campaignId, campaignId),
-    with: {
-      enrolledContacts: true,
-      sourceTargetList: true,
-    },
-  });
-
-  return enrollments;
-}
-
-// Update enrollment status
-export async function updateEnrollmentStatus(
-  enrollmentId: number,
-  status: 'active' | 'paused' | 'completed'
-) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  await db
-    .update(campaignEnrollments)
-    .set({ 
-      status,
-    })
-    .where(eq(campaignEnrollments.id, enrollmentId));
-
-  revalidatePath("/campaigns");
-}
-
-// Get a campaign with its enrollments and enrolled contacts
-export async function getCampaignWithEnrollments(id: number) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  const campaign = await db.query.campaigns.findFirst({
-    where: and(
-      eq(campaigns.id, id),
-      eq(campaigns.userId, session.user.id)
-    ),
-    with: {
-      settings: true,
-      sendingDays: true,
-      targeting: {
-        with: {
-          organizations: true,
-          jobTitles: true,
-        },
-      },
-      pitch: {
-        with: {
-          features: true,
-        },
-      },
-      outreach: {
-        with: {
-          ctaOptions: true,
-          personalizationSources: true,
-        },
-      },
-      // New enrollment data
-      enrollments: {
-        with: {
-          enrolledContacts: true,
-          sourceTargetList: {
-            with: {
-              contacts: true,
-            },
-          },
-        },
-      },
-      // Legacy audience data for backward compatibility
-      audiences: {
-        with: {
-          contacts: true,
-        },
-      },
-    },
-  });
-
-  if (!campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  return campaign;
 }

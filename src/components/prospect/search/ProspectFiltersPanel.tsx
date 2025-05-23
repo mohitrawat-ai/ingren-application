@@ -12,8 +12,8 @@ import { useProspectSearchStore } from "@/stores/prospectStore";
 
 // Sample job title options
 const titleOptions = [
-  "CEO", "CTO", "CFO", "CIO", "VP of Sales", "VP of Marketing",
-  "Director of Engineering", "Product Manager", "Marketing Manager"
+  "Sales Development Representative", "Marketing Manager", "Research analyst",
+  "Director of Engineering", "Product Manager", "Account Manager", "Sales Manager"
 ];
 
 // Sample department options
@@ -24,7 +24,7 @@ const departmentOptions = [
 
 // Sample seniority options
 const seniorityOptions = [
-  "C-Level", "VP", "Director", "Manager", "Individual Contributor"
+  "Owner", "Founder", "C-Suite", "Partner", "VP", "Head", "Director", "Manager", "Senior", "Entry", "Intern"
 ];
 
 export function ProspectFiltersPanel() {

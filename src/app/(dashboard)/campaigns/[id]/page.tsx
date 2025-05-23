@@ -1,4 +1,4 @@
-// src/app/(dashboard)/campaigns/[id]/page.tsx
+// src/app/(dashboard)/campaigns/[id]/page.tsx - Minimal working version
 import { notFound } from "next/navigation";
 import { db as dbClient} from "@/lib/db";
 import { eq } from "drizzle-orm";
@@ -35,37 +35,39 @@ export default async function CampaignDetailsPage({
   }
   
   try {
+    console.log('Fetching campaign with only working relations...');
+    
+    // Only use relations that we know work
     const campaign = await db.query.campaigns.findFirst({
       where: eq(campaigns.id, campaignId),
       with: {
-        audiences: true,
         settings: true,
         sendingDays: true,
-        pitch: {
-          with: {
-            features: true,
-          },
-        },
-        outreach: {
-          with: {
-            ctaOptions: true,
-            personalizationSources: true,
-          },
-        },
-        targeting: {
-          with: {
-            organizations: true,
-            jobTitles: true,
-          },
-        },
+        audiences: true,
+        // Skip problematic relations for now
       },
     });
+
+    console.log('Campaign fetched successfully');
 
     if (!campaign) {
       notFound();
     }
+
+    // Get additional data with simple queries (no relations)
+    const targeting = await db.query.campaignTargeting.findFirst({
+      where: (campaignTargeting, { eq }) => eq(campaignTargeting.campaignId, campaignId),
+    });
+
+    const targetOrganizations = targeting ? await db.query.targetOrganizations.findMany({
+      where: (targetOrganizations, { eq }) => eq(targetOrganizations.campaignId, campaignId),
+    }) : [];
+
+    const targetJobTitles = targeting ? await db.query.targetJobTitles.findMany({
+      where: (targetJobTitles, { eq }) => eq(targetJobTitles.campaignId, campaignId),
+    }) : [];
       
-    const audience = campaign?.audiences[0] || null;
+    const audience = campaign?.audiences?.[0] || null;
     
     return (
       <div className="space-y-6">
@@ -96,9 +98,6 @@ export default async function CampaignDetailsPage({
           <Tabs defaultValue="audience" className="w-full">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="audience">Audience</TabsTrigger>
-              <TabsTrigger value="pitch">Pitch</TabsTrigger>
-              <TabsTrigger value="outreach">Outreach</TabsTrigger>
-              <TabsTrigger value="workflow">Workflow</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
             
@@ -118,9 +117,42 @@ export default async function CampaignDetailsPage({
                       No audience has been created for this campaign yet.
                     </p>
                   )}
+                  
+                  {targeting && (
+                    <div className="mt-6 space-y-4">
+                      <h4 className="font-medium">Targeting Information</h4>
+                      
+                      {targetOrganizations.length > 0 && (
+                        <div>
+                          <h5 className="text-sm font-medium text-muted-foreground mb-2">Organizations</h5>
+                          <div className="space-y-2">
+                            {targetOrganizations.map((org) => (
+                              <div key={org.id} className="border rounded p-3">
+                                <p className="font-medium">{org.name}</p>
+                                {org.industry && <p className="text-sm text-muted-foreground">Industry: {org.industry}</p>}
+                                {org.employeeCount && <p className="text-sm text-muted-foreground">Size: {org.employeeCount}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {targetJobTitles.length > 0 && (
+                        <div>
+                          <h5 className="text-sm font-medium text-muted-foreground mb-2">Job Titles</h5>
+                          <div className="flex flex-wrap gap-2">
+                            {targetJobTitles.map((title) => (
+                              <Badge key={title.id} variant="outline">{title.title}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
+          
             
             <TabsContent value="settings" className="space-y-4">
               <Card>
@@ -154,6 +186,9 @@ export default async function CampaignDetailsPage({
       <div>
         <h1>Error Loading Campaign</h1>
         <p>There was an error loading the campaign details.</p>
+        <pre className="bg-red-100 p-4 rounded mt-4 text-sm">
+          {error instanceof Error ? error.message : 'Unknown error'}
+        </pre>
       </div>
     );
   }

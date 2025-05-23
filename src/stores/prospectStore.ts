@@ -1,6 +1,5 @@
 // src/stores/prospectStore.ts
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { Company, Prospect, CompanyFilters, ProspectFilters } from '@/types';
 import { saveProspectList } from '@/lib/actions/prospect';
 import { 
@@ -69,7 +68,6 @@ interface ProspectSearchState {
 }
 
 export const useProspectSearchStore = create<ProspectSearchState>()(
-  persist(
     (set, get) => ({
       // Initial state - Companies
       companyQuery: '',
@@ -340,18 +338,6 @@ export const useProspectSearchStore = create<ProspectSearchState>()(
         selectedCompanyListName: null,
         newListName: '',
         activeTab: 'companies',
-      }),
-    }),
-    {
-      name: 'prospect-search-store',
-      // Only persist some of the state
-      partialize: (state) => ({
-        companyFilters: state.companyFilters,
-        prospectFilters: state.prospectFilters,
-        activeTab: state.activeTab,
-        searchMode: state.searchMode,
-        selectedCompanyListId: state.selectedCompanyListId,
-        selectedCompanyListName: state.selectedCompanyListName,
       }),
     }
   )

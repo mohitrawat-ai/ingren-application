@@ -68,7 +68,7 @@ export function CompanyDataTable() {
       cell: ({ row }) => <div className="font-medium">{row.getValue("name")}</div>,
     },
     {
-      accessorKey: "industry",
+      accessorKey: "founded",
       header: ({ column }) => {
         return (
           <Button
@@ -76,7 +76,7 @@ export function CompanyDataTable() {
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             className="h-auto p-0 font-semibold"
           >
-            Industry
+            Founded
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         )
@@ -84,26 +84,6 @@ export function CompanyDataTable() {
       cell: ({ row }) => (
         <Badge variant="secondary">
           {row.getValue("industry") || "N/A"}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "size",
-      header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="h-auto p-0 font-semibold"
-          >
-            Size
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        )
-      },
-      cell: ({ row }) => (
-        <Badge variant="outline">
-          {row.getValue("size") || "N/A"} employees
         </Badge>
       ),
     },
@@ -127,8 +107,8 @@ export function CompanyDataTable() {
       },
     },
     {
-      accessorKey: "location",
-      header: "Location",
+      accessorKey: "socialProfiles.linkedin",
+      header: "Linkedin",
       cell: ({ row }) => (
         <div className="text-sm">
           {row.getValue("location") || "N/A"}

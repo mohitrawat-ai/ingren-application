@@ -6,7 +6,7 @@ import { DataTable } from "@/components/ui/data-table"
 import { useProspectSearchStore } from "@/stores/prospectStore"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, MoreHorizontal, Building, Mail, MapPin } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, Building, MapPin } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -170,21 +170,6 @@ export function ProspectDataTable() {
                     <span className="font-medium">{row.getValue("companyName")}</span>
                 </div>
             ),
-        },
-        {
-            accessorKey: "email",
-            header: "Email",
-            cell: ({ row }) => {
-                const email = row.getValue("email") as string
-                return email ? (
-                    <div className="flex items-center">
-                        <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <span className="text-sm">{email}</span>
-                    </div>
-                ) : (
-                    <span className="text-muted-foreground text-sm">N/A</span>
-                )
-            },
         },
         {
             accessorKey: "country",

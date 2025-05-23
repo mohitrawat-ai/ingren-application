@@ -11,7 +11,6 @@ import {
   Trash2, 
   Users, 
   Plus,
-  Mail,
   Building,
   Filter,
   MailPlus,
@@ -356,12 +355,6 @@ export default function ProspectListDetail({ params }: ProspectListDetailProps) 
                                   <Building className="h-3.5 w-3.5 mr-1 inline-flex" />
                                   {contact.companyName}
                                 </div>
-                                {contact.email && (
-                                  <div className="flex items-center">
-                                    <Mail className="h-3.5 w-3.5 mr-1 inline-flex" />
-                                    {contact.email}
-                                  </div>
-                                )}
                                 {(contact.city || contact.state || contact.country) && (
                                   <div className="text-xs">
                                     {[contact.city, contact.state, contact.country]

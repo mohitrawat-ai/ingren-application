@@ -247,10 +247,10 @@ export function ProspectDataTable() {
         <div className="w-full">
             {/* Company Scope Banner */}
             {searchMode === "selection" && selectedCompanies.length > 0 && (
-                <div className="px-4 py-3 bg-blue-50 border-b border-blue-200">
+                <div className="px-4 py-3 bg-black-800 border-b border-black-200">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-blue-900">
+                            <span className="text-sm font-medium text-white-200">
                                 Searching within {selectedCompanies.length} selected companies:
                             </span>
                             <div className="flex items-center gap-1">

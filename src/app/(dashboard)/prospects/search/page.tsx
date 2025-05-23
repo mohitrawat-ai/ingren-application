@@ -156,7 +156,7 @@ export default function ProspectSearchPage() {
       if (newListId) {
         toast.success("Prospect list created successfully");
         setSaveProspectDialogOpen(false);
-        router.push(`/prospects/${newListId}`);
+        router.push(`/prospect-lists/${newListId}`);
       }
     } catch (error) {
       console.error("Error saving prospect list:", error);
@@ -326,11 +326,11 @@ export default function ProspectSearchPage() {
               </div>
               
               {searchMode !== 'all' && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                  <span className="font-medium text-blue-900">
+                <div className="mt-2 p-2 bg-black-800 border border-black-200 rounded text-sm">
+                  <span className="font-medium text-white-100">
                     Scoped Search: 
                   </span>
-                  <span className="text-blue-700 ml-1">
+                  <span className="text-white-200 ml-1">
                     Searching for prospects only within {getSearchModeLabel()}
                   </span>
                 </div>

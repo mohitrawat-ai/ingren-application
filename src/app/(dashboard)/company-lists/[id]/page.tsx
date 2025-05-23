@@ -253,19 +253,6 @@ export default function CompanyListDetail({ params }: CompanyListDetailProps) {
                             <div className="flex-1">
                               <h3 className="font-medium">{company.companyName}</h3>
                               
-                              <div className="flex items-center gap-2 mt-2">
-                                {company.industry && (
-                                  <Badge variant="secondary">
-                                    {company.industry}
-                                  </Badge>
-                                )}
-                                {company.employeeCount && (
-                                  <Badge variant="outline">
-                                    {company.employeeCount} employees
-                                  </Badge>
-                                )}
-                              </div>
-                              
                               <div className="flex flex-col gap-1 mt-2 text-sm text-muted-foreground">
                                 {company.domain && (
                                   <div className="flex items-center">

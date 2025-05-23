@@ -558,7 +558,7 @@ export function CampaignSettingsStep({
         
         <div className="flex justify-end">
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Complete Campaign"}
+            {isSubmitting ? "Saving..." : "Preview Campaign"}
           </Button>
         </div>
       </form>

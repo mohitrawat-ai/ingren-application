@@ -73,7 +73,7 @@ export function Sidebar() {
       color: "text-orange-500",
     },
     {
-      label: "URLs",
+      label: "Resource Hub",
       icon: LinkIcon,
       href: "/urls",
       color: "text-emerald-500",

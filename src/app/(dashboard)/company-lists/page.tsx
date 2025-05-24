@@ -46,7 +46,7 @@ import { EmptyStateCompanyList } from "@/components/company-list/EmptyStateCompa
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
 // Import our store
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteCompanyList, getCompanyLists } from "@/lib/actions/companyList";
 
 export default function CompanyListsPage() {
@@ -60,6 +60,8 @@ export default function CompanyListsPage() {
     queryFn: () => getCompanyLists(),
   });
 
+  const queryClient = useQueryClient();
+
   if (error) {
     console.error("Error fetching company lists:", error);
     toast.error("Failed to load company lists");
@@ -71,6 +73,8 @@ export default function CompanyListsPage() {
       toast.success("Company list deleted successfully");
       setDeleteDialogOpen(false);
       setListToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+
     },
     onError: (error) => {
       console.error("Error deleting company list:", error);

@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import { useProspectListStore } from "@/stores/prospectListStore";
+import { createProspectList } from "@/lib/actions/prospectList";
 
 interface CreateProspectListDialogProps {
   open: boolean;
@@ -31,10 +31,11 @@ export function CreateProspectListDialog({
   onOpenChange,
 }: CreateProspectListDialogProps) {
   const router = useRouter();
-  const { createList, creating, selectedProspects, clearSelectedProspects } = useProspectListStore();
   
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+
+  const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -43,18 +44,17 @@ export function CreateProspectListDialog({
     }
     
     try {
-      const newList = await createList({
+      setCreating(true);
+      const newList = await createProspectList({
         name: name.trim(),
         description: description.trim() || undefined,
-        prospects: selectedProspects,
+        prospects: [],
       });
       
-      toast.success("Prospect list created successfully");
-      
+      toast.success("Prospect list created successfully");      
       // Reset form
       setName("");
       setDescription("");
-      clearSelectedProspects();
       
       onOpenChange(false);
       
@@ -64,6 +64,8 @@ export function CreateProspectListDialog({
     } catch (error) {
       console.error("Error creating list:", error);
       toast.error("Failed to create prospect list");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -107,17 +109,6 @@ export function CreateProspectListDialog({
               rows={3}
             />
           </div>
-          
-          {selectedProspects.length > 0 && (
-            <div className="p-3 bg-muted rounded-md">
-              <p className="text-sm font-medium">
-                {selectedProspects.length} prospects selected
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                These prospects will be added to your new list
-              </p>
-            </div>
-          )}
         </div>
         
         <DialogFooter>

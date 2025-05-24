@@ -1,7 +1,7 @@
 // src/app/(dashboard)/prospect-lists/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Plus, Search, Trash2, Edit, Users, Eye, MailPlus, Upload } from "lucide-react";
@@ -45,45 +45,47 @@ import { CreateProspectListDialog } from "@/components/prospect-list/CreateProsp
 import { EmptyStateProspectList } from "@/components/prospect-list/EmptyStateProspectList";
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
-// Import our store
-import { useProspectListStore } from "@/stores/prospectListStore";
+
+// Import our actions
+import { deleteProspectList, getProspectLists } from "@/lib/actions/prospectList";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export default function ProspectListsPage() {
-  const { 
-    lists, 
-    loadingLists, 
-    fetchLists, 
-    deleteList,
-    deleting
-  } = useProspectListStore();
-  
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [listToDelete, setListToDelete] = useState<number | null>(null);
   const [listToDeleteName, setListToDeleteName] = useState<string>("");
 
-  useEffect(() => {
-    fetchLists().catch(error => {
-      console.error("Error fetching prospect lists:", error);
-      toast.error("Failed to load prospect lists");
-    });
-  }, [fetchLists]);
+  const {data: lists = [], error, isLoading : loadingLists} = useQuery({
+    queryKey: ['lists'],
+    queryFn: () => getProspectLists(),
+  });
 
-  const handleDelete = async () => {
-    if (!listToDelete) return;
-    
-    try {
-      await deleteList(listToDelete);
+  const queryClient = useQueryClient();
+
+  if(error) {
+    console.error("Error fetching prospect lists:", error);
+    toast.error("Failed to load prospect lists");
+  }
+
+  const {mutateAsync: handleDelete, isPending: deleting} = useMutation({
+    mutationFn: (listId: number) => deleteProspectList(listId),
+    onSuccess: () => {
       toast.success("Prospect list deleted successfully");
       setDeleteDialogOpen(false);
       setListToDelete(null);
       setListToDeleteName("");
-    } catch (error: unknown) {
-      console.error("Error deleting list:", error);
-      if(error instanceof Error)
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+
+    },
+    onError: (error) => {
+      console.error("Error deleting prospect list:", error);
+      if(error instanceof Error) {
         toast.error(error.message || "Failed to delete prospect list");
-    }
-  };
+      }
+    },
+  });
 
   const openDeleteDialog = (listId: number, listName: string) => {
     setListToDelete(listId);
@@ -264,7 +266,7 @@ export default function ProspectListsPage() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleDelete}
+                onClick={() => handleDelete}
                 disabled={deleting || lists.find(l => l.id === listToDelete)?.usedInCampaigns}
               >
                 {deleting ? "Deleting..." : "Delete"}

@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import { useCompanyListStore } from "@/stores/companyListStore";
+import { createCompanyList } from "@/lib/actions/companyList";
 
 interface CreateCompanyListDialogProps {
   open: boolean;
@@ -30,7 +30,7 @@ export function CreateCompanyListDialog({
   onOpenChange,
 }: CreateCompanyListDialogProps) {
   const router = useRouter();
-  const { createList, creating, selectedCompanies, clearSelectedCompanies } = useCompanyListStore();
+  const [creating, setCreating ] = useState(false);
   
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -42,18 +42,17 @@ export function CreateCompanyListDialog({
     }
     
     try {
-      const newList = await createList({
+      setCreating(true);
+      const newList = await createCompanyList({
         name: name.trim(),
         description: description.trim() || undefined,
-        companies: selectedCompanies,
+        companies: [],
       });
       
-      toast.success("Company list created successfully");
-      
+      toast.success("Company list created successfully");      
       // Reset form
       setName("");
       setDescription("");
-      clearSelectedCompanies();
       
       onOpenChange(false);
       
@@ -63,6 +62,8 @@ export function CreateCompanyListDialog({
     } catch (error) {
       console.error("Error creating list:", error);
       toast.error("Failed to create company list");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -106,17 +107,6 @@ export function CreateCompanyListDialog({
               rows={3}
             />
           </div>
-          
-          {selectedCompanies.length > 0 && (
-            <div className="p-3 bg-muted rounded-md">
-              <p className="text-sm font-medium">
-                {selectedCompanies.length} companies selected
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                These companies will be added to your new list
-              </p>
-            </div>
-          )}
         </div>
         
         <DialogFooter>

@@ -58,7 +58,7 @@ export default function ProspectListsPage() {
   const [listToDeleteName, setListToDeleteName] = useState<string>("");
 
   const {data: lists = [], error, isLoading : loadingLists} = useQuery({
-    queryKey: ['lists'],
+    queryKey: ['prospect-lists'],
     queryFn: () => getProspectLists(),
   });
 
@@ -76,7 +76,7 @@ export default function ProspectListsPage() {
       setDeleteDialogOpen(false);
       setListToDelete(null);
       setListToDeleteName("");
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['prospect-lists'] });
 
     },
     onError: (error) => {
@@ -266,7 +266,7 @@ export default function ProspectListsPage() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => handleDelete}
+                onClick={() => handleDelete(listToDelete || -1)}
                 disabled={deleting || lists.find(l => l.id === listToDelete)?.usedInCampaigns}
               >
                 {deleting ? "Deleting..." : "Delete"}

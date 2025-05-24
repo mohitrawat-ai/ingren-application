@@ -1,7 +1,7 @@
 // src/app/(dashboard)/company-lists/[id]/page.tsx
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -48,7 +48,8 @@ import {
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
 // Import our store
-import { useCompanyListStore } from "@/stores/companyListStore";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { getCompanyList, deleteCompanyList } from "@/lib/actions/companyList";
 
 interface CompanyListDetailProps {
   params: Promise<{ id: string }>
@@ -59,45 +60,45 @@ export default function CompanyListDetail({ params }: CompanyListDetailProps) {
   const { id } = use(params);
   const numericId = Number(id);
   
-  const { 
-    currentList, 
-    loadingCurrentList, 
-    fetchList, 
-    deleteList,
-    deleting
-  } = useCompanyListStore();
-  
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    if (isNaN(numericId)) {
-      toast.error("Invalid list ID");
-      router.push("/company-lists");
-      return;
-    }
-    
-    fetchList(numericId).catch(error => {
-      console.error("Error loading company list:", error);
-      toast.error("Failed to load company list");
-    });
-  }, [numericId, fetchList, router]);
+  const queryClient = useQueryClient();
 
-  const handleDelete = async () => {
-    if (!currentList) return;
-    
-    try {
-      await deleteList(currentList.id);
+
+  const {mutateAsync: handleDelete, isPending: deleting} = useMutation({
+    mutationFn: () => deleteCompanyList(numericId),
+    onSuccess: () => {
       toast.success("Company list deleted successfully");
       router.push("/company-lists");
-    } catch (error: unknown) {
-      console.error("Error deleting list:", error);
-      if(error instanceof Error)
+      queryClient.invalidateQueries({ queryKey: ['companyList', numericId] });
+    },
+    onError: (error) => {
+      console.error("Error deleting company list:", error);
+      if(error instanceof Error) {
         toast.error(error.message || "Failed to delete company list");
+      }
     }
-  };
+  });
+
+  const {data: currentList, error, isLoading: loadingCurrentList} = useQuery({
+    queryKey: ['companyList', numericId],
+    queryFn: () => getCompanyList(numericId),
+    enabled: !!numericId,
+  });
+
+  if(isNaN(numericId)) {
+    toast.error("Invalid list ID");
+    router.push("/company-lists");
+    return;
+  }
+
+  if(error){
+    console.error("Error loading company list:", error);
+    toast.error("Failed to load company list");
+  }
 
   // Filter companies based on search text
   const filteredCompanies = currentList?.companies?.filter(company =>
@@ -336,7 +337,7 @@ export default function CompanyListDetail({ params }: CompanyListDetailProps) {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleDelete}
+                onClick={() => handleDelete()}
                 disabled={deleting || currentList?.usedInCampaigns}
               >
                 {deleting ? "Deleting..." : "Delete"}

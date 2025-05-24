@@ -56,7 +56,7 @@ export default function CompanyListsPage() {
   const [listToDelete, setListToDelete] = useState<number | null>(null);
 
   const {data: lists = [], error, isLoading : loadingLists} = useQuery({
-    queryKey: ['lists'],
+    queryKey: ['company-lists'],
     queryFn: () => getCompanyLists(),
   });
 
@@ -73,7 +73,7 @@ export default function CompanyListsPage() {
       toast.success("Company list deleted successfully");
       setDeleteDialogOpen(false);
       setListToDelete(null);
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['company-lists'] });
 
     },
     onError: (error) => {

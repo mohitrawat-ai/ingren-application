@@ -1,7 +1,7 @@
 // src/app/(dashboard)/prospect-lists/[id]/page.tsx
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -57,8 +57,8 @@ import {
 
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
-// Import our store
-import { useProspectListStore } from "@/stores/prospectListStore";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { deleteProspectList, getProspectList } from "@/lib/actions/prospectList";
 
 interface ProspectListDetailProps {
   params: Promise<{ id: string }>
@@ -68,47 +68,45 @@ export default function ProspectListDetail({ params }: ProspectListDetailProps) 
   const router = useRouter();
   const { id } = use(params);
   const numericId = Number(id);
-  
-  const { 
-    currentList, 
-    loadingCurrentList, 
-    fetchList, 
-    deleteList,
-    deleting
-  } = useProspectListStore();
-  
+  const queryClient = useQueryClient();
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    if (isNaN(numericId)) {
-      toast.error("Invalid list ID");
-      router.push("/prospect-lists");
-      return;
-    }
-    
-    fetchList(numericId).catch(error => {
-      console.error("Error loading prospect list:", error);
-      toast.error("Failed to load prospect list");
-    });
-  }, [numericId, fetchList, router]);
-
-  const handleDelete = async () => {
-    if (!currentList) return;
-    
-    try {
-      await deleteList(currentList.id);
+  const {mutateAsync: handleDelete, isPending: deleting} = useMutation({
+    mutationFn: () => deleteProspectList(numericId),
+    onSuccess: () => {
       toast.success("Prospect list deleted successfully");
       router.push("/prospect-lists");
-    } catch (error: unknown) {
-      console.error("Error deleting list:", error);
-      if(error instanceof Error)
+      queryClient.invalidateQueries({ queryKey: ['prospectList', numericId] });
+    },
+    onError: (error) => {
+      console.error("Error deleting prospect list:", error);
+      if(error instanceof Error) {
         toast.error(error.message || "Failed to delete prospect list");
+      }
     }
-  };
+  });
+
+  const {data: currentList, error, isLoading: loadingCurrentList} = useQuery({
+    queryKey: ['prospectList', numericId],
+    queryFn: () => getProspectList(numericId),
+    enabled: !!numericId,
+  });
+
+  if(isNaN(numericId)) {
+    toast.error("Invalid Prospect list ID");
+    router.push("/prospect-lists");
+    return;
+  }
+
+  if (error) {
+    console.error("Error loading prospect list:", error);
+    toast.error("Failed to load prospect list");
+  }
 
   // Filter prospects based on search text
   const filteredProspects = currentList?.contacts?.filter(contact =>
@@ -468,7 +466,7 @@ export default function ProspectListDetail({ params }: ProspectListDetailProps) 
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleDelete}
+                onClick={() => handleDelete()}
                 disabled={deleting || currentList?.usedInCampaigns}
               >
                 {deleting ? "Deleting..." : "Delete"}

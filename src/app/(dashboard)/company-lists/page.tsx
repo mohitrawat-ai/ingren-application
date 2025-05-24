@@ -1,7 +1,7 @@
 // src/app/(dashboard)/company-lists/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Plus, Search, Trash2, Edit, Building, Eye } from "lucide-react";
@@ -46,43 +46,39 @@ import { EmptyStateCompanyList } from "@/components/company-list/EmptyStateCompa
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
 // Import our store
-import { useCompanyListStore } from "@/stores/companyListStore";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { deleteCompanyList, getCompanyLists } from "@/lib/actions/companyList";
 
 export default function CompanyListsPage() {
-  const { 
-    lists, 
-    loadingLists, 
-    fetchLists, 
-    deleteList,
-    deleting
-  } = useCompanyListStore();
-  
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [listToDelete, setListToDelete] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchLists().catch(error => {
-      console.error("Error fetching company lists:", error);
-      toast.error("Failed to load company lists");
-    });
-  }, [fetchLists]);
+  const {data: lists = [], error, isLoading : loadingLists} = useQuery({
+    queryKey: ['lists'],
+    queryFn: () => getCompanyLists(),
+  });
 
-  const handleDelete = async () => {
-    if (!listToDelete) return;
-    
-    try {
-      await deleteList(listToDelete);
+  if (error) {
+    console.error("Error fetching company lists:", error);
+    toast.error("Failed to load company lists");
+  }
+
+  const {mutate: handleDelete, isPending: deleting} = useMutation({
+    mutationFn: (listId: number) => deleteCompanyList(listId),
+    onSuccess: () => {
       toast.success("Company list deleted successfully");
       setDeleteDialogOpen(false);
       setListToDelete(null);
-    } catch (error) {
-      console.error("Error deleting list:", error);
+    },
+    onError: (error) => {
+      console.error("Error deleting company list:", error);
       if(error instanceof Error) {
-          toast.error(error.message || "Failed to delete company list");
+        toast.error(error.message || "Failed to delete company list");
       }
-    }
-  };
+    },
+  });
 
   const openDeleteDialog = (listId: number) => {
     setListToDelete(listId);
@@ -238,7 +234,7 @@ export default function CompanyListsPage() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleDelete}
+                onClick={() =>handleDelete(listToDelete || -1)}
                 disabled={deleting}
               >
                 {deleting ? "Deleting..." : "Delete"}

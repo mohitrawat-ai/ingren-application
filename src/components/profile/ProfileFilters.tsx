@@ -87,11 +87,11 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
   }, []);
 
   // Helper to update nested filter properties
-  const updateFilter = (section: keyof ProfileFiltersType, field: string, value: any) => {
+  const updateFilter = (section: keyof ProfileFiltersType, field: string, value: unknown) => {
     onChange({
       ...filters,
       [section]: {
-        ...filters[section],
+        ...filters[section] as Record<string, unknown>,
         [field]: value
       }
     });
@@ -99,12 +99,36 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
 
   // Helper to toggle array values
   const toggleArrayValue = (section: keyof ProfileFiltersType, field: string, value: string) => {
-    const currentArray = (filters[section] as any)?.[field] || [];
+    const currentSection = filters[section] as Record<string, unknown> | undefined;
+    const currentArray = (currentSection?.[field] as string[]) || [];
     const newArray = currentArray.includes(value)
       ? currentArray.filter((item: string) => item !== value)
       : [...currentArray, value];
     
     updateFilter(section, field, newArray.length > 0 ? newArray : undefined);
+  };
+
+  // Helper to update range values
+  const updateRangeFilter = (
+    section: keyof ProfileFiltersType,
+    field: string,
+    rangeField: 'min' | 'max',
+    value: number | undefined
+  ) => {
+    const currentSection = filters[section] as Record<string, unknown> | undefined;
+    const currentRange = (currentSection?.[field] as { min?: number; max?: number }) || {};
+    
+    const newRange = {
+      ...currentRange,
+      [rangeField]: value
+    };
+
+    // Remove undefined values
+    if (newRange.min === undefined && newRange.max === undefined) {
+      updateFilter(section, field, undefined);
+    } else {
+      updateFilter(section, field, newRange);
+    }
   };
 
   // Clear all filters
@@ -215,7 +239,7 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
               <Checkbox
                 id="include-remote"
                 checked={filters.location?.includeRemote || false}
-                onCheckedChange={(checked) => updateFilter('location', 'includeRemote', checked)}
+                onCheckedChange={(checked) => updateFilter('location', 'includeRemote', !!checked)}
               />
               <Label htmlFor="include-remote" className="text-sm">Include remote workers</Label>
             </div>
@@ -306,7 +330,7 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
               <Checkbox
                 id="decision-maker"
                 checked={filters.role?.isDecisionMaker || false}
-                onCheckedChange={(checked) => updateFilter('role', 'isDecisionMaker', checked)}
+                onCheckedChange={(checked) => updateFilter('role', 'isDecisionMaker', !!checked)}
               />
               <Label htmlFor="decision-maker" className="text-sm">Decision makers only</Label>
             </div>
@@ -353,19 +377,17 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
                   type="number"
                   placeholder="Min"
                   value={filters.company?.employeeCountRange?.min || ''}
-                  onChange={(e) => updateFilter('company', 'employeeCountRange', {
-                    ...filters.company?.employeeCountRange,
-                    min: e.target.value ? parseInt(e.target.value) : undefined
-                  })}
+                  onChange={(e) => updateRangeFilter('company', 'employeeCountRange', 'min',
+                    e.target.value ? parseInt(e.target.value) : undefined
+                  )}
                 />
                 <Input
                   type="number"
                   placeholder="Max"
                   value={filters.company?.employeeCountRange?.max || ''}
-                  onChange={(e) => updateFilter('company', 'employeeCountRange', {
-                    ...filters.company?.employeeCountRange,
-                    max: e.target.value ? parseInt(e.target.value) : undefined
-                  })}
+                  onChange={(e) => updateRangeFilter('company', 'employeeCountRange', 'max',
+                    e.target.value ? parseInt(e.target.value) : undefined
+                  )}
                 />
               </div>
             </div>
@@ -387,7 +409,7 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
                 <Checkbox
                   id="b2b-only"
                   checked={filters.company?.isB2B || false}
-                  onCheckedChange={(checked) => updateFilter('company', 'isB2B', checked)}
+                  onCheckedChange={(checked) => updateFilter('company', 'isB2B', !!checked)}
                 />
                 <Label htmlFor="b2b-only" className="text-sm">B2B companies only</Label>
               </div>
@@ -396,7 +418,7 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
                 <Checkbox
                   id="recent-funding"
                   checked={filters.company?.hasRecentFunding || false}
-                  onCheckedChange={(checked) => updateFilter('company', 'hasRecentFunding', checked)}
+                  onCheckedChange={(checked) => updateFilter('company', 'hasRecentFunding', !!checked)}
                 />
                 <Label htmlFor="recent-funding" className="text-sm">Recently funded companies</Label>
               </div>
@@ -439,10 +461,17 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
                   type="number"
                   placeholder="Min"
                   value={filters.advanced?.tenureRange?.min || ''}
-                  onChange={(e) => updateFilter('advanced', 'tenureRange', {
-                    ...filters.advanced?.tenureRange,
-                    max: e.target.value ? parseInt(e.target.value) : undefined
-                  })}
+                  onChange={(e) => updateRangeFilter('advanced', 'tenureRange', 'min',
+                    e.target.value ? parseInt(e.target.value) : undefined
+                  )}
+                />
+                <Input
+                  type="number"
+                  placeholder="Max"
+                  value={filters.advanced?.tenureRange?.max || ''}
+                  onChange={(e) => updateRangeFilter('advanced', 'tenureRange', 'max',
+                    e.target.value ? parseInt(e.target.value) : undefined
+                  )}
                 />
               </div>
             </div>
@@ -451,7 +480,7 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
               <Checkbox
                 id="recent-job-change"
                 checked={filters.advanced?.recentJobChange || false}
-                onCheckedChange={(checked) => updateFilter('advanced', 'recentJobChange', checked)}
+                onCheckedChange={(checked) => updateFilter('advanced', 'recentJobChange', !!checked)}
               />
               <Label htmlFor="recent-job-change" className="text-sm">Recent job change (last 12 months)</Label>
             </div>

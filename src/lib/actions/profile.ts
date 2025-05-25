@@ -17,6 +17,14 @@ import {
   SaveProfileListParams
 } from "@/types/profile";
 
+export interface CreateProfileListParams {
+  name: string;
+  description?: string;
+  profiles: Profile[];
+  metadata?: Record<string, unknown>;
+}
+
+
 const db = await dbClient();
 
 // Base API URL for profile service
@@ -41,6 +49,63 @@ async function makeApiRequest<T>(endpoint: string, options: RequestInit = {}): P
 
   const data = await response.json();
   return data.data || data;
+}
+
+// Create a new profile list
+export async function createProfileList(data: CreateProfileListParams) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      // Create the target list
+      const [newList] = await tx
+        .insert(targetLists)
+        .values({
+          userId: session.user!.id || "-1",
+          name: data.name,
+          description: data.description,
+          type: 'profile',
+          createdBy: session.user!.id,
+          sharedWith: data.metadata ? [JSON.stringify(data.metadata)] : [],
+        })
+        .returning();
+
+      // Insert profiles if provided
+      if (data.profiles && data.profiles.length > 0) {
+        await tx.insert(targetListContacts).values(
+          data.profiles.map(profile => ({
+            targetListId: newList.id,
+            apolloProspectId: profile.id,
+            name: profile.fullName,
+            email: profile.email || null,
+            title: profile.jobTitle || null,
+            companyName: profile.company?.name || null,
+            firstName: profile.firstName || null,
+            lastName: profile.lastName || null,
+            department: profile.department || null,
+            city: profile.city || null,
+            state: profile.state || null,
+            country: profile.country || null,
+            additionalData: {
+              // Store full profile data
+              ...profile,
+              profileType: 'coresignal',
+            },
+          }))
+        );
+      }
+
+      revalidatePath("/profiles");
+      revalidatePath("/profile-lists");
+      return newList;
+    });
+  } catch (error) {
+    console.error("Error creating profile list:", error);
+    throw new Error("Failed to create profile list");
+  }
 }
 
 // Search for profile IDs

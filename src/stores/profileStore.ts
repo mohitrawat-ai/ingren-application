@@ -23,7 +23,7 @@ interface ProfileSearchState {
   // Profile details
   currentProfile: Profile | null;
   loadingCurrentProfile: boolean;
-  
+
   // List management state
   newListName: string;
   savingList: boolean;
@@ -92,28 +92,39 @@ export const useProfileStore = create<ProfileSearchState>()((set, get) => ({
     const pathParts = path.split('.');
     
     // Helper function to set nested property
-    const setNestedProperty = (obj: any, parts: string[], val: unknown): any => {
+    const setNestedProperty = (
+      obj: ProfileFilters | Record<string, unknown>, 
+      parts: string[], 
+      val: unknown
+    ): ProfileFilters => {
       if (parts.length === 1) {
         const key = parts[0];
+        const objAsRecord = obj as Record<string, unknown>;
         
         // Handle array toggle logic for filters
-        if (Array.isArray(obj[key]) && typeof val === 'string') {
-          const currentArray = obj[key] as string[];
+        if (Array.isArray(objAsRecord[key]) && typeof val === 'string') {
+          const currentArray = objAsRecord[key] as string[];
           const updatedArray = currentArray.includes(val)
             ? currentArray.filter(v => v !== val)
             : [...currentArray, val];
           
-          return { ...obj, [key]: updatedArray };
+          return { ...obj, [key]: updatedArray } as ProfileFilters;
         }
         
-        return { ...obj, [key]: val };
+        return { ...obj, [key]: val } as ProfileFilters;
       }
       
       const [currentKey, ...restParts] = parts;
+      const objAsRecord = obj as Record<string, unknown>;
+      const nestedObj = objAsRecord[currentKey];
+      const nextObj = (nestedObj && typeof nestedObj === 'object' && !Array.isArray(nestedObj)) 
+        ? nestedObj as Record<string, unknown>
+        : {};
+        
       return {
         ...obj,
-        [currentKey]: setNestedProperty(obj[currentKey] || {}, restParts, val)
-      };
+        [currentKey]: setNestedProperty(nextObj, restParts, val)
+      } as ProfileFilters;
     };
     
     const updatedFilters = setNestedProperty(filters, pathParts, value);
@@ -201,6 +212,7 @@ export const useProfileStore = create<ProfileSearchState>()((set, get) => ({
       selectedProfiles: [...selectedProfiles, ...newProfiles]
     });
   },
+
   
   bulkDeselectProfiles: (profileIds) => {
     const { selectedProfiles } = get();
@@ -258,6 +270,7 @@ export const useProfileStore = create<ProfileSearchState>()((set, get) => ({
       throw error;
     }
   },
+  
   
   // Actions - Filter options
   fetchFilterOptions: async () => {

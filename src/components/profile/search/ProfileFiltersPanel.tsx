@@ -46,12 +46,17 @@ export function ProfileFiltersPanel() {
     updateFilter(path, value);
   };
 
-  const getSelectedCount = (path: string): number => {
+ const getSelectedCount = (path: string): number => {
     const pathParts = path.split('.');
-    let current = filters;
+    let current: unknown = filters;
     
     for (const part of pathParts) {
-      current = current?.[part];
+      if (current && typeof current === 'object' && part in current) {
+        current = (current as Record<string, unknown>)[part];
+      } else {
+        current = undefined;
+        break;
+      }
     }
     
     return Array.isArray(current) ? current.length : 0;

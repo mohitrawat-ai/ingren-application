@@ -36,7 +36,7 @@ export function SaveProfileListDialog({
   selectedProfiles 
 }: SaveProfileListDialogProps) {
   const router = useRouter();
-  const { clearSelection } = useProfileStore();
+  const { clearProfileSelections } = useProfileStore();
   
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -70,7 +70,7 @@ export function SaveProfileListDialog({
       });
 
       toast.success(`Saved ${selectedProfiles.length} profiles to "${formData.name}"`);
-      clearSelection();
+      clearProfileSelections();
       onOpenChange(false);
       
       // Reset form

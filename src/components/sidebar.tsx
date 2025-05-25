@@ -1,3 +1,4 @@
+// src/components/sidebar.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,7 +16,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Building
+  Building,
+  UserCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -59,6 +61,12 @@ export function Sidebar() {
       icon: Mail,
       href: "/mailbox",
       color: "text-pink-700",
+    },
+    {
+      label: "Profiles",
+      icon: UserCheck,
+      href: "/profile-lists",
+      color: "text-green-500",
     },
     {
       label: "Company Lists",

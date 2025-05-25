@@ -1,3 +1,4 @@
+// src/types/index.ts
 export * from "@/types/campaign/settings"
 export * from "@/types/campaign/targeting"
 export * from "@/types/campaign/pitch"
@@ -6,3 +7,4 @@ export * from "@/types/campaign/workflow"
 export * from "@/types/dataproviders/provider"
 export * from "@/types/dataproviders/prospect"
 export * from "@/types/campaign-form-data"
+export * from "@/types/profile"

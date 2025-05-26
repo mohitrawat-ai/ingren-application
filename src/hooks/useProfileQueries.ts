@@ -21,16 +21,17 @@ export const profileQueryKeys = {
   validation: (filters: ProviderProfileFilters) => [...profileQueryKeys.all, 'validation', filters] as const,
 };
 
-// Hook for filter options with fallback
 export function useFilterOptions() {
   return useQuery({
     queryKey: profileQueryKeys.filterOptions(),
     queryFn: getFilterOptions,
     staleTime: 1000 * 60 * 30, // 30 minutes - filter options rarely change
     gcTime: 1000 * 60 * 60, // 1 hour
-    retry: false, // Don't retry - we have fallback data
+    retry: 2, // Retry twice before giving up
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true, // Always try to get fresh data on mount
+    throwOnError: false, // Let the component handle the error gracefully
   });
 }
 

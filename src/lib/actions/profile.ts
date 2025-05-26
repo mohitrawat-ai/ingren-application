@@ -223,27 +223,6 @@ async function makeApiRequest<T>(
   }
 }
 
-// Safe wrapper for API calls that shouldn't crash the app
-async function safeApiCall<T>(
-  apiCall: () => Promise<T>,
-  fallbackValue: T,
-  errorContext: string
-): Promise<T> {
-  try {
-    return await apiCall();
-  } catch (error) {
-    console.error(`${errorContext}:`, error);
-    
-    // In development, you might want to throw errors
-    // In production, return fallback to prevent crashes
-    if (process.env.NODE_ENV === 'development') {
-      throw error;
-    }
-    
-    return fallbackValue;
-  }
-}
-
 
 // Create a new profile list
 export async function createProfileList(data: CreateProfileListParams) {
@@ -343,37 +322,14 @@ export async function getBatchProfiles(ids: string[]): Promise<ProfileBatchRespo
 }
 
 // Filter options with safe fallback
-export async function getFilterOptions(): Promise<{
-  industries: string[];
-  managementLevels: string[];
-  departments: string[];
-  companySizes: string[];
-  usStates: string[];
-  countries: string[];
-}> {
-  const fallbackOptions: ProfileFilterOptionsResponse = {
-    industries: [
-      "Technology", "Financial Services", "Healthcare", "Manufacturing", 
-      "Retail", "Education", "Real Estate", "Marketing", "Consulting"
-    ],
-    managementLevels: ["executive", "manager", "individual_contributor"],
-    departments: [
-      "Engineering", "Sales", "Marketing", "Operations", "Finance", 
-      "Human Resources", "Product", "Customer Success", "Legal"
-    ],
-    companySizes: ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"],
-    usStates: [
-      "CA", "NY", "TX", "FL", "IL", "PA", "OH", "GA", "NC", "MI", 
-      "NJ", "VA", "WA", "AZ", "MA", "TN", "IN", "MO", "MD", "WI"
-    ],
-    countries: ["United States", "Canada", "United Kingdom", "Germany", "France", "Australia"]
-  };
-
-  return safeApiCall(
-    () => makeApiRequest<ProfileFilterOptionsResponse>('/profiles/filter-options'),
-    fallbackOptions,
-    'Failed to fetch filter options'
-  );
+export async function getFilterOptions(): Promise<ProfileFilterOptionsResponse> {
+  try {
+    return await makeApiRequest<ProfileFilterOptionsResponse>('/profiles/filter-options');
+  } catch (error) {
+    console.error('Failed to fetch filter options:', error);
+    // Instead of fallback, throw the error - if API is down, the app should handle it gracefully
+    throw new Error('Filter options unavailable. Please check your connection and try again.');
+  }
 }
 
 // Validate filters

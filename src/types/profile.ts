@@ -1,5 +1,20 @@
 // src/types/profile.ts
 
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+// Updated filter options response
+export interface ProfileFilterOptionsResponse {
+  industries: FilterOption[];
+  managementLevels: FilterOption[];
+  departments: FilterOption[];
+  companySizes: FilterOption[];
+  usStates: FilterOption[];
+  countries: FilterOption[];
+}
+
 // Core Profile interfaces
 export interface ProfileFilters {
   // Geographic filters
@@ -183,15 +198,6 @@ export interface ProfileValidationResponse {
   valid: boolean;
   errors: string[];
   warnings: string[];
-}
-
-export interface ProfileFilterOptionsResponse {
-  industries: string[];
-  managementLevels: string[];
-  departments: string[];
-  companySizes: string[];
-  usStates: string[];
-  countries: string[];
 }
 
 // Extended filters for API requests

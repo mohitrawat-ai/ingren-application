@@ -1,4 +1,4 @@
-// src/components/profile/search/ProfileFiltersPanel.tsx - Updated with clean UX
+// src/components/profile/search/ProfileFiltersPanel.tsx - Updated for FilterOption objects
 
 "use client";
 
@@ -18,26 +18,18 @@ import {
 import { X } from "lucide-react";
 
 import { useProfileStore } from "@/stores/profileStore";
-
-interface FilterOptions {
-  industries: string[];
-  managementLevels: string[];
-  departments: string[];
-  companySizes: string[];
-  usStates: string[];
-  countries: string[];
-}
+import { ProfileFilterOptionsResponse } from "@/types/profile";
 
 interface ProfileFiltersPanelProps {
-  filterOptions?: FilterOptions | null;
+  filterOptions?: ProfileFilterOptionsResponse | null;
 }
 
 export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps) {
   const {
-    draftFilters,              // Still use draft internally
-    updateDraftFilter,         // Still update draft internally
-    clearDraftFilters,         // Still clear draft
-    getCurrentFiltersCount,    // NEW: User-friendly count
+    draftFilters,
+    updateDraftFilter,
+    clearDraftFilters,
+    getCurrentFiltersCount,
   } = useProfileStore();
 
   // Local state for text inputs
@@ -60,7 +52,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
     });
   }, [draftFilters]);
 
-  // Handle array filter toggles
+  // Handle array filter toggles - now uses value instead of label
   const handleArrayFilter = (path: string, value: string) => {
     updateDraftFilter(path, value);
   };
@@ -113,9 +105,19 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
 
   const currentFiltersCount = getCurrentFiltersCount();
 
+  // Show loading message if filter options are not available
+  if (!filterOptions) {
+    return (
+      <div className="p-4 text-center text-muted-foreground">
+        <div className="text-sm">Loading filter options...</div>
+        <div className="text-xs mt-1">Please check your connection if this persists.</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {/* UPDATED: Simple filter status - no confusing draft/applied language */}
+      {/* Filter status */}
       {currentFiltersCount > 0 && (
         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
           <div className="flex items-center gap-2">
@@ -150,7 +152,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
-            {/* Countries */}
+            {/* Countries - Updated to use FilterOption */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Countries</Label>
@@ -166,25 +168,25 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                 )}
               </div>
               <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions?.countries?.map(country => (
-                  <div key={country} className="flex items-center space-x-2">
+                {filterOptions.countries?.map(country => (
+                  <div key={country.value} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`country-${country}`}
-                      checked={draftFilters.location?.countries?.includes(country) || false}
-                      onCheckedChange={() => handleArrayFilter('location.countries', country)}
+                      id={`country-${country.value}`}
+                      checked={draftFilters.location?.countries?.includes(country.value) || false}
+                      onCheckedChange={() => handleArrayFilter('location.countries', country.value)}
                     />
                     <label
-                      htmlFor={`country-${country}`}
+                      htmlFor={`country-${country.value}`}
                       className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
-                      {country}
+                      {country.label}
                     </label>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* US States */}
+            {/* US States - Updated to use FilterOption */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">US States</Label>
@@ -200,25 +202,25 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                 )}
               </div>
               <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions?.usStates?.map(state => (
-                  <div key={state} className="flex items-center space-x-2">
+                {filterOptions.usStates?.map(state => (
+                  <div key={state.value} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`state-${state}`}
-                      checked={draftFilters.location?.states?.includes(state) || false}
-                      onCheckedChange={() => handleArrayFilter('location.states', state)}
+                      id={`state-${state.value}`}
+                      checked={draftFilters.location?.states?.includes(state.value) || false}
+                      onCheckedChange={() => handleArrayFilter('location.states', state.value)}
                     />
                     <label
-                      htmlFor={`state-${state}`}
+                      htmlFor={`state-${state.value}`}
                       className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
-                      {state}
+                      {state.label}
                     </label>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Cities */}
+            {/* Cities - No change needed as it's text input */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Cities</Label>
               <Input
@@ -232,7 +234,6 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                 Enter cities separated by commas (e.g., &quot;San Francisco, Austin, Seattle&quot;)
               </p>
             </div>
-
           </AccordionContent>
         </AccordionItem>
 
@@ -249,7 +250,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
-            {/* Job Titles */}
+            {/* Job Titles - No change needed as it's text input */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Job Title Keywords</Label>
               <Input
@@ -261,7 +262,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               />
             </div>
 
-            {/* Departments */}
+            {/* Departments - Updated to use FilterOption */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Departments</Label>
@@ -277,25 +278,25 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                 )}
               </div>
               <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions?.departments?.map(department => (
-                  <div key={department} className="flex items-center space-x-2">
+                {filterOptions.departments?.map(department => (
+                  <div key={department.value} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`dept-${department}`}
-                      checked={draftFilters.role?.departments?.includes(department) || false}
-                      onCheckedChange={() => handleArrayFilter('role.departments', department)}
+                      id={`dept-${department.value}`}
+                      checked={draftFilters.role?.departments?.includes(department.value) || false}
+                      onCheckedChange={() => handleArrayFilter('role.departments', department.value)}
                     />
                     <label
-                      htmlFor={`dept-${department}`}
+                      htmlFor={`dept-${department.value}`}
                       className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
-                      {department}
+                      {department.label}
                     </label>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Management Levels */}
+            {/* Management Levels - Updated to use FilterOption */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Management Level</Label>
@@ -311,42 +312,25 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                 )}
               </div>
               <div className="space-y-2">
-                {filterOptions?.managementLevels?.map(level => (
-                  <div key={level} className="flex items-center space-x-2">
+                {filterOptions.managementLevels?.map(level => (
+                  <div key={level.value} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`mgmt-${level}`}
-                      checked={draftFilters.role?.managementLevels?.includes(level) || false}
-                      onCheckedChange={() => handleArrayFilter('role.managementLevels', level)}
+                      id={`mgmt-${level.value}`}
+                      checked={draftFilters.role?.managementLevels?.includes(level.value) || false}
+                      onCheckedChange={() => handleArrayFilter('role.managementLevels', level.value)}
                     />
                     <label
-                      htmlFor={`mgmt-${level}`}
+                      htmlFor={`mgmt-${level.value}`}
                       className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize cursor-pointer"
                     >
-                      {level.replace('_', ' ')}
+                      {level.label}
                     </label>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Seniority Levels */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Seniority Level</Label>
-                {getSelectedCount('role.seniorityLevels') > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearFilter('role.seniorityLevels')}
-                    className="h-6 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Decision Maker */}
+            {/* Decision Maker - No change needed */}
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="decision-maker"
@@ -376,7 +360,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
-            {/* Industries */}
+            {/* Industries - Updated to use FilterOption */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Industries</Label>
@@ -392,18 +376,18 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                 )}
               </div>
               <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions?.industries?.map(industry => (
-                  <div key={industry} className="flex items-center space-x-2">
+                {filterOptions.industries?.map(industry => (
+                  <div key={industry.value} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`industry-${industry}`}
-                      checked={draftFilters.company?.industries?.includes(industry) || false}
-                      onCheckedChange={() => handleArrayFilter('company.industries', industry)}
+                      id={`industry-${industry.value}`}
+                      checked={draftFilters.company?.industries?.includes(industry.value) || false}
+                      onCheckedChange={() => handleArrayFilter('company.industries', industry.value)}
                     />
                     <label
-                      htmlFor={`industry-${industry}`}
+                      htmlFor={`industry-${industry.value}`}
                       className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
-                      {industry}
+                      {industry.label}
                     </label>
                   </div>
                 ))}

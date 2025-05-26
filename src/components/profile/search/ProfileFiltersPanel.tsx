@@ -1,4 +1,4 @@
-// src/components/profile/search/ProfileFiltersPanel.tsx - Updated for FilterOption objects
+// src/components/profile/search/ProfileFiltersPanel.tsx - Updated with Searchable Multi-Select
 
 "use client";
 
@@ -19,6 +19,9 @@ import { X } from "lucide-react";
 
 import { useProfileStore } from "@/stores/profileStore";
 import { ProfileFilterOptionsResponse } from "@/types/profile";
+
+// Import our new SearchableMultiSelect component
+import { SearchableMultiSelect } from "@/components/ui/searchable-multi-select";
 
 interface ProfileFiltersPanelProps {
   filterOptions?: ProfileFilterOptionsResponse | null;
@@ -52,9 +55,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
     });
   }, [draftFilters]);
 
-  // Handle array filter toggles - now uses value instead of label
-  const handleArrayFilter = (path: string, value: string) => {
-    updateDraftFilter(path, value);
+  // Handle multi-select filter changes
+  const handleMultiSelectFilter = (path: string, values: string[]) => {
+    updateDraftFilter(path, values.length > 0 ? values : undefined);
   };
 
   // Handle text input changes
@@ -152,7 +155,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
-            {/* Countries - Updated to use FilterOption */}
+            {/* Countries - Now using SearchableMultiSelect */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Countries</Label>
@@ -167,26 +170,17 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   </Button>
                 )}
               </div>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions.countries?.map(country => (
-                  <div key={country.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`country-${country.value}`}
-                      checked={draftFilters.location?.countries?.includes(country.value) || false}
-                      onCheckedChange={() => handleArrayFilter('location.countries', country.value)}
-                    />
-                    <label
-                      htmlFor={`country-${country.value}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {country.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <SearchableMultiSelect
+                options={filterOptions.countries || []}
+                selectedValues={draftFilters.location?.countries || []}
+                onSelectionChange={(values) => handleMultiSelectFilter('location.countries', values)}
+                placeholder="Select countries..."
+                searchPlaceholder="Search countries..."
+                maxDisplay={2}
+              />
             </div>
 
-            {/* US States - Updated to use FilterOption */}
+            {/* US States - Now using SearchableMultiSelect */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">US States</Label>
@@ -201,26 +195,17 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   </Button>
                 )}
               </div>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions.usStates?.map(state => (
-                  <div key={state.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`state-${state.value}`}
-                      checked={draftFilters.location?.states?.includes(state.value) || false}
-                      onCheckedChange={() => handleArrayFilter('location.states', state.value)}
-                    />
-                    <label
-                      htmlFor={`state-${state.value}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {state.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <SearchableMultiSelect
+                options={filterOptions.usStates || []}
+                selectedValues={draftFilters.location?.states || []}
+                onSelectionChange={(values) => handleMultiSelectFilter('location.states', values)}
+                placeholder="Select US states..."
+                searchPlaceholder="Search states..."
+                maxDisplay={2}
+              />
             </div>
 
-            {/* Cities - No change needed as it's text input */}
+            {/* Cities - Keep as text input since it's more flexible */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Cities</Label>
               <Input
@@ -250,7 +235,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
-            {/* Job Titles - No change needed as it's text input */}
+            {/* Job Title Keywords - Keep as text input */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Job Title Keywords</Label>
               <Input
@@ -262,7 +247,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               />
             </div>
 
-            {/* Departments - Updated to use FilterOption */}
+            {/* Departments - Now using SearchableMultiSelect */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Departments</Label>
@@ -277,26 +262,17 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   </Button>
                 )}
               </div>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions.departments?.map(department => (
-                  <div key={department.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`dept-${department.value}`}
-                      checked={draftFilters.role?.departments?.includes(department.value) || false}
-                      onCheckedChange={() => handleArrayFilter('role.departments', department.value)}
-                    />
-                    <label
-                      htmlFor={`dept-${department.value}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {department.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <SearchableMultiSelect
+                options={filterOptions.departments || []}
+                selectedValues={draftFilters.role?.departments || []}
+                onSelectionChange={(values) => handleMultiSelectFilter('role.departments', values)}
+                placeholder="Select departments..."
+                searchPlaceholder="Search departments..."
+                maxDisplay={2}
+              />
             </div>
 
-            {/* Management Levels - Updated to use FilterOption */}
+            {/* Management Levels - Now using SearchableMultiSelect */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Management Level</Label>
@@ -311,26 +287,50 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   </Button>
                 )}
               </div>
-              <div className="space-y-2">
-                {filterOptions.managementLevels?.map(level => (
-                  <div key={level.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`mgmt-${level.value}`}
-                      checked={draftFilters.role?.managementLevels?.includes(level.value) || false}
-                      onCheckedChange={() => handleArrayFilter('role.managementLevels', level.value)}
-                    />
-                    <label
-                      htmlFor={`mgmt-${level.value}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize cursor-pointer"
-                    >
-                      {level.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <SearchableMultiSelect
+                options={filterOptions.managementLevels || []}
+                selectedValues={draftFilters.role?.managementLevels || []}
+                onSelectionChange={(values) => handleMultiSelectFilter('role.managementLevels', values)}
+                placeholder="Select management levels..."
+                searchPlaceholder="Search levels..."
+                maxDisplay={3}
+              />
             </div>
 
-            {/* Decision Maker - No change needed */}
+            {/* Seniority Levels - Now using SearchableMultiSelect for consistency */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Seniority Level</Label>
+                {getSelectedCount('role.seniorityLevels') > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => clearFilter('role.seniorityLevels')}
+                    className="h-6 px-2 text-xs"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <SearchableMultiSelect
+                options={[
+                  { value: 'c-level', label: 'C-Level' },
+                  { value: 'vp', label: 'VP' },
+                  { value: 'director', label: 'Director' },
+                  { value: 'manager', label: 'Manager' },
+                  { value: 'senior', label: 'Senior' },
+                  { value: 'mid-level', label: 'Mid-Level' },
+                  { value: 'junior', label: 'Junior' }
+                ]}
+                selectedValues={draftFilters.role?.seniorityLevels || []}
+                onSelectionChange={(values) => handleMultiSelectFilter('role.seniorityLevels', values)}
+                placeholder="Select seniority levels..."
+                searchPlaceholder="Search levels..."
+                maxDisplay={2}
+              />
+            </div>
+
+            {/* Decision Maker */}
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="decision-maker"
@@ -360,7 +360,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
-            {/* Industries - Updated to use FilterOption */}
+            {/* Industries - Now using SearchableMultiSelect */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Industries</Label>
@@ -375,23 +375,14 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   </Button>
                 )}
               </div>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {filterOptions.industries?.map(industry => (
-                  <div key={industry.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`industry-${industry.value}`}
-                      checked={draftFilters.company?.industries?.includes(industry.value) || false}
-                      onCheckedChange={() => handleArrayFilter('company.industries', industry.value)}
-                    />
-                    <label
-                      htmlFor={`industry-${industry.value}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {industry.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <SearchableMultiSelect
+                options={filterOptions.industries || []}
+                selectedValues={draftFilters.company?.industries || []}
+                onSelectionChange={(values) => handleMultiSelectFilter('company.industries', values)}
+                placeholder="Select industries..."
+                searchPlaceholder="Search industries..."
+                maxDisplay={2}
+              />
             </div>
 
             {/* Company Size */}
@@ -510,7 +501,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             Advanced Filters
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
-            {/* Skills */}
+            {/* Skills - Keep as text input for flexibility */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Skills</Label>
               <Input

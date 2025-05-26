@@ -274,7 +274,6 @@ function countFilters(filters: ProfileFilters): number {
   if (filters.location?.countries?.length) count += filters.location.countries.length;
   if (filters.location?.states?.length) count += filters.location.states.length;
   if (filters.location?.cities?.length) count += filters.location.cities.length;
-  if (filters.location?.includeRemote) count += 1;
   
   // Count role filters
   if (filters.role?.jobTitles?.length) count += filters.role.jobTitles.length;

@@ -7,7 +7,6 @@ export interface ProfileFilters {
     states?: string[];              // US state codes: ["CA", "NY", "TX"]
     cities?: string[];              // City names: ["San Francisco", "Austin"]
     countries?: string[];           // Country names: ["United States"]
-    includeRemote?: boolean;        // Include remote workers
     metroAreas?: string[];          // Metro area names
   };
   

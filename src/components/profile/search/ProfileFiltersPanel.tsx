@@ -233,20 +233,6 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               </p>
             </div>
 
-            {/* Include Remote */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="include-remote"
-                checked={draftFilters.location?.includeRemote || false}
-                onCheckedChange={(checked) => handleBooleanFilter('location.includeRemote', !!checked)}
-              />
-              <label
-                htmlFor="include-remote"
-                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-              >
-                Include remote workers
-              </label>
-            </div>
           </AccordionContent>
         </AccordionItem>
 

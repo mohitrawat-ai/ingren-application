@@ -232,15 +232,6 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
                 )}
               />
             </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="include-remote"
-                checked={filters.location?.includeRemote || false}
-                onCheckedChange={(checked) => updateFilter('location', 'includeRemote', !!checked)}
-              />
-              <Label htmlFor="include-remote" className="text-sm">Include remote workers</Label>
-            </div>
           </CollapsibleContent>
         </Collapsible>
 

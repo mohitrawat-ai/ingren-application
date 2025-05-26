@@ -1,4 +1,4 @@
-// src/stores/profileStore.ts - Simplified store for UI state only
+// src/stores/profileStore.ts - Updated with reset search state
 
 import { create } from 'zustand';
 import { Profile, ProfileFilters } from '@/types/profile';
@@ -25,6 +25,7 @@ interface ProfileUIState {
   setQuery: (query: string) => void;
   updateFilter: (path: string, value: unknown) => void;
   clearFilters: () => void;
+  resetSearch: () => void; // NEW: Reset search state
   
   // Selection actions
   toggleProfileSelection: (profile: Profile) => void;
@@ -107,6 +108,16 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
   
   clearFilters: () => {
     set({ filters: {}, currentPage: 1 });
+  },
+  
+  // NEW: Reset search state while keeping selections
+  resetSearch: () => {
+    set({ 
+      query: '',
+      filters: {},
+      currentPage: 1,
+      // Keep selectedProfiles and other UI state intact
+    });
   },
   
   // Selection actions

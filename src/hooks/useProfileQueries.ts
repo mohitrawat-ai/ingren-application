@@ -1,4 +1,5 @@
-// src/hooks/useProfileQueries.ts - Custom hooks for profile data
+// src/hooks/useProfileQueries.ts - Updated to support enabled/disabled queries
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   getFilterOptions, 
@@ -33,12 +34,12 @@ export function useFilterOptions() {
   });
 }
 
-// Hook for profile search
+// Hook for profile search - UPDATED to accept enabled parameter
 export function useProfileSearch(filters: ProviderProfileFilters, enabled = true) {
   return useQuery({
     queryKey: profileQueryKeys.search(filters),
     queryFn: () => searchProfileIds(filters),
-    enabled: enabled && Object.keys(filters).length > 0,
+    enabled: enabled, // Simplified - just use the enabled parameter directly
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1, // Retry once on failure
     refetchOnWindowFocus: false,
@@ -76,24 +77,32 @@ export function useFilterValidation(filters: ProviderProfileFilters, enabled = t
   });
 }
 
-// Custom hook that combines search + batch fetch
-export function useProfileSearchWithData(filters: ProviderProfileFilters, page = 1, pageSize = 10) {
+// Custom hook that combines search + batch fetch - UPDATED to accept enabled parameter
+export function useProfileSearchWithData(
+  filters: ProviderProfileFilters, 
+  page = 1, 
+  pageSize = 10,
+  enabled = true // NEW: Add enabled parameter
+) {
   const queryClient = useQueryClient();
   
-  // First get profile IDs
-  const searchQuery = useProfileSearch(filters);
+  // First get profile IDs - UPDATED: Pass enabled parameter
+  const searchQuery = useProfileSearch(filters, enabled);
   
   // Calculate pagination
   const startIndex = (page - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const pageProfileIds = searchQuery.data?.profileIds?.slice(startIndex, endIndex) || [];
   
-  // Then get profile data for current page
-  const profilesQuery = useBatchProfiles(pageProfileIds, !!searchQuery.data?.profileIds);
+  // Then get profile data for current page - UPDATED: Only enabled if search was successful and enabled
+  const profilesQuery = useBatchProfiles(
+    pageProfileIds, 
+    enabled && !!searchQuery.data?.profileIds && pageProfileIds.length > 0
+  );
   
-  // Prefetch next page
+  // Prefetch next page - UPDATED: Only if enabled and we have data
   const nextPageIds = searchQuery.data?.profileIds?.slice(endIndex, endIndex + pageSize) || [];
-  if (nextPageIds.length > 0) {
+  if (enabled && nextPageIds.length > 0 && searchQuery.data?.profileIds) {
     queryClient.prefetchQuery({
       queryKey: [...profileQueryKeys.all, 'batch', nextPageIds],
       queryFn: () => getBatchProfiles(nextPageIds),

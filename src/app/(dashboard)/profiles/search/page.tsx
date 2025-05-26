@@ -1,4 +1,4 @@
-// src/app/(dashboard)/profiles/search/page.tsx - Complete implementation
+// src/app/(dashboard)/profiles/search/page.tsx - Updated to search only on button click
 
 "use client";
 
@@ -55,6 +55,7 @@ export default function ProfileSearchPage() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [searchInputValue, setSearchInputValue] = useState('');
+  const [hasSearched, setHasSearched] = useState(false); // NEW: Track if user has searched
 
   // Zustand store state
   const { 
@@ -87,7 +88,7 @@ export default function ProfileSearchPage() {
     pageSize,
   }), [filters, query, currentPage, pageSize]);
 
-  // Main search query
+  // Main search query - UPDATED: Only enabled when user has searched
   const {
     profiles,
     totalResults,
@@ -95,12 +96,13 @@ export default function ProfileSearchPage() {
     isLoading,
     error: searchError,
     refetchSearch,
-  } = useProfileSearchWithData(apiFilters, currentPage, pageSize);
+  } = useProfileSearchWithData(apiFilters, currentPage, pageSize, hasSearched); // Pass hasSearched flag
 
   // Event handlers
   const handleSearch = () => {
     setQuery(searchInputValue);
     setPage(1); // Reset to first page on new search
+    setHasSearched(true); // NEW: Mark that user has performed a search
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -168,7 +170,6 @@ export default function ProfileSearchPage() {
   // Compute selection states
   const allCurrentPageSelected = profiles.length > 0 && 
     profiles.every(profile => selectedProfiles.some(selected => selected.id === profile.id));
-  
 
   // Get active filters count
   const getActiveFiltersCount = () => {
@@ -188,6 +189,7 @@ export default function ProfileSearchPage() {
     
     if (filters.company?.industries?.length) count += filters.company.industries.length;
     if (filters.company?.employeeCountRange?.min || filters.company?.employeeCountRange?.max) count += 1;
+    if (filters.company?.revenueRange?.min || filters.company?.revenueRange?.max) count += 1;
     if (filters.company?.foundedAfter || filters.company?.foundedBefore) count += 1;
     if (filters.company?.isB2B) count += 1;
     if (filters.company?.hasRecentFunding) count += 1;
@@ -200,6 +202,8 @@ export default function ProfileSearchPage() {
     
     return count;
   };
+
+  const hasSearchCriteria = searchInputValue.trim() || getActiveFiltersCount() > 0;
 
   return (
     <ErrorBoundary>
@@ -278,7 +282,7 @@ export default function ProfileSearchPage() {
           
           <Button 
             onClick={handleSearch} 
-            disabled={isLoading}
+            disabled={isLoading || !hasSearchCriteria}
             size="lg"
           >
             {isLoading ? (
@@ -347,7 +351,7 @@ export default function ProfileSearchPage() {
           </Alert>
         )}
 
-        {searchError && (
+        {searchError && hasSearched && (
           <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
@@ -362,6 +366,7 @@ export default function ProfileSearchPage() {
             </AlertDescription>
           </Alert>
         )}
+
         <div className="flex flex-1 overflow-hidden border rounded-lg">
           {/* Desktop Filters Sidebar */}
           <div className="hidden lg:block w-80 border-r bg-muted/30">
@@ -384,73 +389,94 @@ export default function ProfileSearchPage() {
 
           {/* Main Content */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Results Header */}
-            {!isLoading && totalResults > 0 && (
-              <div className="flex items-center justify-between p-4 border-b bg-background">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <span className="font-medium">{totalResults.toLocaleString()}</span>
-                    <span className="text-muted-foreground"> profiles found</span>
+            {/* UPDATED: Show different content based on search state */}
+            {!hasSearched ? (
+              // Initial state - no search performed yet
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center max-w-md">
+                  <Search className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">Ready to search profiles</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Enter search keywords or apply filters, then click the search button to find profiles.
+                  </p>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>• Search by name, job title, or company</p>
+                    <p>• Use filters to narrow by location, industry, and role level</p>
+                    <p>• Find decision makers with enhanced profile data</p>
                   </div>
-                  
-                  {profiles.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSelectAll}
-                    >
-                      {allCurrentPageSelected ? 'Deselect All' : 'Select All'}
-                    </Button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* View Mode Toggle */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        {viewMode === 'cards' ? <Grid className="h-4 w-4" /> : <List className="h-4 w-4" />}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem onClick={() => setViewMode('cards')}>
-                        <Grid className="mr-2 h-4 w-4" />
-                        Cards View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setViewMode('table')}>
-                        <List className="mr-2 h-4 w-4" />
-                        Table View
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </div>
-            )}
+            ) : (
+              <>
+                {/* Results Header */}
+                {!isLoading && totalResults > 0 && (
+                  <div className="flex items-center justify-between p-4 border-b bg-background">
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <span className="font-medium">{totalResults.toLocaleString()}</span>
+                        <span className="text-muted-foreground"> profiles found</span>
+                      </div>
+                      
+                      {profiles.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSelectAll}
+                        >
+                          {allCurrentPageSelected ? 'Deselect All' : 'Select All'}
+                        </Button>
+                      )}
+                    </div>
 
-            {/* Results Content */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-4">
-                <ProfileList 
-                  profiles={profiles}
-                  selectedProfiles={selectedProfiles}
-                  onToggleSelection={toggleProfileSelection}
-                  viewMode={viewMode}
-                />
-              </div>
-            </div>
+                    <div className="flex items-center gap-2">
+                      {/* View Mode Toggle */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            {viewMode === 'cards' ? <Grid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => setViewMode('cards')}>
+                            <Grid className="mr-2 h-4 w-4" />
+                            Cards View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setViewMode('table')}>
+                            <List className="mr-2 h-4 w-4" />
+                            Table View
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                )}
 
-            {/* Pagination */}
-            {pagination && pagination.pages > 1 && (
-              <div className="border-t p-4 bg-background">
-                <ProfilePagination
-                  currentPage={pagination.page}
-                  totalPages={pagination.pages}
-                  totalResults={pagination.total}
-                  pageSize={pageSize}
-                  onPageChange={setPage}
-                  onPageSizeChange={setPageSize}
-                />
-              </div>
+                {/* Results Content */}
+                <div className="flex-1 overflow-y-auto">
+                  <div className="p-4">
+                    <ProfileList 
+                      profiles={profiles}
+                      selectedProfiles={selectedProfiles}
+                      onToggleSelection={toggleProfileSelection}
+                      viewMode={viewMode}
+                    />
+                  </div>
+                </div>
+
+                {/* Pagination */}
+                {pagination && pagination.pages > 1 && (
+                  <div className="border-t p-4 bg-background">
+                    <ProfilePagination
+                      currentPage={pagination.page}
+                      totalPages={pagination.pages}
+                      totalResults={pagination.total}
+                      pageSize={pageSize}
+                      onPageChange={setPage}
+                      onPageSizeChange={setPageSize}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

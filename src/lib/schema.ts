@@ -5,6 +5,15 @@ import * as tables from '@/lib/tables/main';
 
 export * from "@/lib/tables/main";
 
+// Tenants table
+export const tenants = pgTable("tenants", {
+  id: text("id").notNull().primaryKey(),
+  domain: text("domain").notNull().unique(), 
+  name: text("name").notNull(), 
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Auth Tables
 export const users = pgTable("user", {
   id: text("id").notNull().primaryKey(),
@@ -12,7 +21,19 @@ export const users = pgTable("user", {
   email: text("email").notNull(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
+  tenantId: text("tenant_id").references(() => tenants.id),
 });
+
+export const tenantRelations = relations(tenants, ({ many }) => ({
+  users: many(users),
+}));
+
+export const userRelations = relations(users, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [users.tenantId],
+    references: [tenants.id],
+  }),
+}));
 
 export const accounts = pgTable(
   "account",
@@ -261,6 +282,7 @@ export const urls = pgTable('urls', {
 
 // Type exports
 export type User = typeof users.$inferSelect;
+export type Tenant = typeof tenants.$inferSelect;
 export type Campaign = typeof campaigns.$inferSelect;
 export type Url = typeof urls.$inferSelect;
 export type ContactType = typeof audienceContacts.$inferSelect;

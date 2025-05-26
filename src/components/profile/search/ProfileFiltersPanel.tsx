@@ -1,7 +1,7 @@
-// src/components/profile/search/ProfileFiltersPanel.tsx
+// src/components/profile/ProfileFiltersPanel.tsx - Updated to accept filterOptions as prop
+
 "use client";
 
-import { useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,21 +18,26 @@ import { X } from "lucide-react";
 
 import { useProfileStore } from "@/stores/profileStore";
 
-export function ProfileFiltersPanel() {
+interface FilterOptions {
+  industries: string[];
+  managementLevels: string[];
+  seniorityLevels: string[];
+  departments: string[];
+  companySizes: string[];
+  usStates: string[];
+  countries: string[];
+}
+
+interface ProfileFiltersPanelProps {
+  filterOptions?: FilterOptions | null;
+}
+
+export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps) {
   const { 
     filters, 
-    updateFilter, 
-    filterOptions, 
-    fetchFilterOptions, 
-    loadingFilterOptions 
+    updateFilter,
+    clearFilters
   } = useProfileStore();
-
-  // Load filter options on mount
-  useEffect(() => {
-    if (!filterOptions && !loadingFilterOptions) {
-      fetchFilterOptions().catch(console.error);
-    }
-  }, [filterOptions, loadingFilterOptions, fetchFilterOptions]);
 
   const handleArrayFilter = (path: string, value: string) => {
     updateFilter(path, value);
@@ -46,7 +51,7 @@ export function ProfileFiltersPanel() {
     updateFilter(path, value);
   };
 
- const getSelectedCount = (path: string): number => {
+  const getSelectedCount = (path: string): number => {
     const pathParts = path.split('.');
     let current: unknown = filters;
     
@@ -66,20 +71,63 @@ export function ProfileFiltersPanel() {
     updateFilter(path, []);
   };
 
-  if (loadingFilterOptions) {
-    return (
-      <div className="p-4">
-        <div className="animate-pulse space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 bg-muted rounded"></div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const getTotalFiltersCount = () => {
+    let count = 0;
+    
+    // Count location filters
+    if (filters.location?.countries?.length) count += filters.location.countries.length;
+    if (filters.location?.states?.length) count += filters.location.states.length;
+    if (filters.location?.cities?.length) count += filters.location.cities.length;
+    if (filters.location?.includeRemote) count += 1;
+    
+    // Count role filters
+    if (filters.role?.jobTitles?.length) count += filters.role.jobTitles.length;
+    if (filters.role?.departments?.length) count += filters.role.departments.length;
+    if (filters.role?.managementLevels?.length) count += filters.role.managementLevels.length;
+    if (filters.role?.seniorityLevels?.length) count += filters.role.seniorityLevels.length;
+    if (filters.role?.isDecisionMaker) count += 1;
+    if (filters.role?.keywords) count += 1;
+    
+    // Count company filters
+    if (filters.company?.industries?.length) count += filters.company.industries.length;
+    if (filters.company?.employeeCountRange?.min || filters.company?.employeeCountRange?.max) count += 1;
+    if (filters.company?.revenueRange?.min || filters.company?.revenueRange?.max) count += 1;
+    if (filters.company?.foundedAfter || filters.company?.foundedBefore) count += 1;
+    if (filters.company?.isB2B) count += 1;
+    if (filters.company?.hasRecentFunding) count += 1;
+    if (filters.company?.companyKeywords) count += 1;
+    
+    // Count advanced filters
+    if (filters.advanced?.skills?.length) count += filters.advanced.skills.length;
+    if (filters.advanced?.tenureRange?.min || filters.advanced?.tenureRange?.max) count += 1;
+    if (filters.advanced?.recentJobChange) count += 1;
+    if (filters.advanced?.keywords) count += 1;
+    
+    return count;
+  };
+
+  const totalFiltersCount = getTotalFiltersCount();
 
   return (
     <div className="space-y-4">
+      {/* Clear all filters button */}
+      {totalFiltersCount > 0 && (
+        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{totalFiltersCount} filters applied</Badge>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="h-8 px-2"
+          >
+            <X className="h-3 w-3 mr-1" />
+            Clear All
+          </Button>
+        </div>
+      )}
+
       <Accordion type="multiple" className="w-full" defaultValue={["location", "role", "company"]}>
         
         {/* Location Filters */}

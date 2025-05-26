@@ -31,25 +31,219 @@ const db = await dbClient();
 const PROFILE_API_BASE = process.env.NEXT_PUBLIC_PROVIDERS_INGREN_API_URL || 'http://localhost:3004/api/provider';
 const API_KEY = process.env.INGREN_API_KEY || '';
 
-// Helper function to make API requests
-async function makeApiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${PROFILE_API_BASE}${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-      ...options.headers,
-    },
-    ...options,
-  });
+// Validate configuration
+if (!API_KEY) {
+  console.error('PROFILE_API_KEY environment variable is not set');
+}
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `API request failed: ${response.status}`);
+if (!PROFILE_API_BASE) {
+  console.error('PROFILE_API_BASE environment variable is not set');
+}
+
+// Rate limiting and retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+const REQUEST_TIMEOUT = 30000; // 30 seconds
+
+// Track failed requests to prevent spam
+const failedRequests = new Map<string, { count: number; lastAttempt: number }>();
+const FAILURE_COOLDOWN = 60000; // 1 minute cooldown after failures
+
+// Helper function to create AbortController with timeout
+function createTimeoutController(timeoutMs: number): AbortController {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  // Clean up timeout when request completes
+  controller.signal.addEventListener('abort', () => {
+    clearTimeout(timeoutId);
+  });
+  
+  return controller;
+}
+
+// Helper function to check if we should skip request due to recent failures
+function shouldSkipRequest(endpoint: string): boolean {
+  const failure = failedRequests.get(endpoint);
+  if (!failure) return false;
+  
+  const timeSinceLastAttempt = Date.now() - failure.lastAttempt;
+  const cooldownRequired = Math.min(FAILURE_COOLDOWN * failure.count, 300000); // Max 5 min cooldown
+  
+  return timeSinceLastAttempt < cooldownRequired;
+}
+
+// Helper function to record request failure
+function recordFailure(endpoint: string): void {
+  const existing = failedRequests.get(endpoint) || { count: 0, lastAttempt: 0 };
+  failedRequests.set(endpoint, {
+    count: existing.count + 1,
+    lastAttempt: Date.now()
+  });
+}
+
+// Helper function to clear failure record on success
+function clearFailure(endpoint: string): void {
+  failedRequests.delete(endpoint);
+}
+
+// Enhanced error class for better error handling
+class ProfileAPIError extends Error {
+  constructor(
+    message: string,
+    public endpoint: string,
+    public statusCode?: number,
+    public cause?: Error
+  ) {
+    super(message);
+    this.name = 'ProfileAPIError';
+  }
+}
+
+// Helper function to make API requests with comprehensive error handling
+async function makeApiRequest<T>(
+  endpoint: string, 
+  options: RequestInit = {},
+  retryCount = 0
+): Promise<T> {
+  // Check if we should skip this request due to recent failures
+  if (shouldSkipRequest(endpoint)) {
+    const failure = failedRequests.get(endpoint);
+    throw new ProfileAPIError(
+      `Request to ${endpoint} skipped due to recent failures (${failure?.count} attempts)`,
+      endpoint
+    );
   }
 
-  const data = await response.json();
-  return data.data || data;
+  // Validate environment configuration
+  if (!API_KEY) {
+    throw new ProfileAPIError(
+      'PROFILE_API_KEY environment variable is not set',
+      endpoint
+    );
+  }
+
+  if (!PROFILE_API_BASE) {
+    throw new ProfileAPIError(
+      'PROFILE_API_BASE environment variable is not set',
+      endpoint
+    );
+  }
+
+  // Create timeout controller
+  const controller = createTimeoutController(REQUEST_TIMEOUT);
+  
+  try {
+    const url = `${PROFILE_API_BASE}${endpoint}`;
+    console.log(`Making API request to: ${url}`);
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+        ...options.headers,
+      },
+    });
+
+    // Clear any previous failures on successful connection
+    clearFailure(endpoint);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new ProfileAPIError(
+        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+        endpoint,
+        response.status
+      );
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new ProfileAPIError(
+        `API returned error: ${data.message || 'Unknown error'}`,
+        endpoint
+      );
+    }
+
+    return data.data as T;
+  } catch (error) {
+    // Record the failure
+    recordFailure(endpoint);
+    
+    // Handle different types of errors
+    if (error instanceof ProfileAPIError) {
+      throw error;
+    }
+    
+    if (error instanceof Error) {
+      // Handle specific fetch errors
+      if (error.name === 'AbortError') {
+        throw new ProfileAPIError(
+          `Request timeout after ${REQUEST_TIMEOUT}ms`,
+          endpoint,
+          undefined,
+          error
+        );
+      }
+      
+      if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
+        const shouldRetry = retryCount < MAX_RETRIES;
+        
+        if (shouldRetry) {
+          console.warn(`Fetch failed for ${endpoint}, retrying in ${RETRY_DELAY}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          return makeApiRequest<T>(endpoint, options, retryCount + 1);
+        }
+        
+        throw new ProfileAPIError(
+          `Connection failed after ${MAX_RETRIES} retries: ${error.message}`,
+          endpoint,
+          undefined,
+          error
+        );
+      }
+      
+      throw new ProfileAPIError(
+        `Request failed: ${error.message}`,
+        endpoint,
+        undefined,
+        error
+      );
+    }
+    
+    throw new ProfileAPIError(
+      'Unknown error occurred',
+      endpoint,
+      undefined,
+      error as Error
+    );
+  }
 }
+
+// Safe wrapper for API calls that shouldn't crash the app
+async function safeApiCall<T>(
+  apiCall: () => Promise<T>,
+  fallbackValue: T,
+  errorContext: string
+): Promise<T> {
+  try {
+    return await apiCall();
+  } catch (error) {
+    console.error(`${errorContext}:`, error);
+    
+    // In development, you might want to throw errors
+    // In production, return fallback to prevent crashes
+    if (process.env.NODE_ENV === 'development') {
+      throw error;
+    }
+    
+    return fallbackValue;
+  }
+}
+
 
 // Create a new profile list
 export async function createProfileList(data: CreateProfileListParams) {
@@ -148,14 +342,40 @@ export async function getBatchProfiles(ids: string[]): Promise<ProfileBatchRespo
   }
 }
 
-// Get filter options
-export async function getFilterOptions(): Promise<ProfileFilterOptionsResponse> {
-  try {
-    return await makeApiRequest<ProfileFilterOptionsResponse>('/profiles/filter-options');
-  } catch (error) {
-    console.error('Error getting filter options:', error);
-    throw error;
-  }
+// Filter options with safe fallback
+export async function getFilterOptions(): Promise<{
+  industries: string[];
+  managementLevels: string[];
+  seniorityLevels: string[];
+  departments: string[];
+  companySizes: string[];
+  usStates: string[];
+  countries: string[];
+}> {
+  const fallbackOptions: ProfileFilterOptionsResponse = {
+    industries: [
+      "Technology", "Financial Services", "Healthcare", "Manufacturing", 
+      "Retail", "Education", "Real Estate", "Marketing", "Consulting"
+    ],
+    managementLevels: ["executive", "manager", "individual_contributor"],
+    seniorityLevels: ["c-level", "vp", "director", "manager", "senior", "mid-level", "junior"],
+    departments: [
+      "Engineering", "Sales", "Marketing", "Operations", "Finance", 
+      "Human Resources", "Product", "Customer Success", "Legal"
+    ],
+    companySizes: ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"],
+    usStates: [
+      "CA", "NY", "TX", "FL", "IL", "PA", "OH", "GA", "NC", "MI", 
+      "NJ", "VA", "WA", "AZ", "MA", "TN", "IN", "MO", "MD", "WI"
+    ],
+    countries: ["United States", "Canada", "United Kingdom", "Germany", "France", "Australia"]
+  };
+
+  return safeApiCall(
+    () => makeApiRequest<ProfileFilterOptionsResponse>('/profiles/filter-options'),
+    fallbackOptions,
+    'Failed to fetch filter options'
+  );
 }
 
 // Validate filters

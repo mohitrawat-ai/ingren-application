@@ -40,6 +40,8 @@ interface ResourceItem {
   description: string;
   tags: string[];
   dateAdded: string;
+  isUploaded?: boolean;
+  fileType?: string;
 }
 
 interface NewItemForm {
@@ -48,6 +50,8 @@ interface NewItemForm {
   url: string;
   description: string;
   tags: string;
+  file?: File;
+  isFileUpload: boolean;
 }
 
 const LOCAL_STORAGE_KEY_ITEMS = 'knowledgeBaseItems';
@@ -71,12 +75,15 @@ const ClientKnowledgeBase: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [isOnboarding, setIsOnboarding] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
   const [newItem, setNewItem] = useState<NewItemForm>({
     type: 'company',
     title: '',
     url: '',
     description: '',
-    tags: ''
+    tags: '',
+    file: undefined,
+    isFileUpload: false
   });
 
   // Save items to local storage whenever they change
@@ -137,8 +144,26 @@ const ClientKnowledgeBase: React.FC = () => {
     }
   ];
 
+  // Helper functions
   const getTypeConfig = (type: string): ItemType => {
     return itemTypes.find(t => t.value === type) || itemTypes[0];
+  };
+
+  const getFileIcon = (fileType?: string, url?: string) => {
+    if (!fileType && url) {
+      if (url.includes('.pdf')) return '📄';
+      if (url.includes('.ppt') || url.includes('.pptx')) return '📊';
+      if (url.includes('.doc') || url.includes('.docx')) return '📝';
+    }
+    
+    if (fileType?.includes('pdf')) return '📄';
+    if (fileType?.includes('presentation') || fileType?.includes('powerpoint')) return '📊';
+    if (fileType?.includes('word') || fileType?.includes('document')) return '📝';
+    return '🔗';
+  };
+
+  const canPreview = (item: ResourceItem) => {
+    return item.isUploaded && item.fileType?.includes('pdf');
   };
 
   const filteredItems = items.filter(item => {
@@ -149,30 +174,85 @@ const ClientKnowledgeBase: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNewItem(prev => ({
+        ...prev,
+        file,
+        title: prev.title || file.name.replace(/\.[^/.]+$/, ""),
+      }));
+    }
+  };
+
+  const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.title.trim() || !newItem.url.trim()) return;
+    if (!newItem.title.trim()) return;
+    
+    setIsUploading(true);
+    let finalUrl = newItem.url;
+    
+    // Handle file upload if file is selected
+    if (newItem.isFileUpload && newItem.file) {
+      try {
+        const formData = new FormData();
+        formData.append('file', newItem.file);
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          alert(`Upload failed: ${errorData.error}`);
+          setIsUploading(false);
+          return;
+        }
+        
+        const uploadResult = await response.json();
+        finalUrl = uploadResult.url;
+        
+      } catch (error) {
+        console.error('Upload error:', error);
+        alert('Failed to upload file. Please try again.');
+        setIsUploading(false);
+        return;
+      }
+    } else if (!newItem.url.trim()) {
+      alert('Please provide a URL or upload a file.');
+      setIsUploading(false);
+      return;
+    }
 
     const item: ResourceItem = {
       id: Date.now(),
       type: newItem.type,
       title: newItem.title.trim(),
-      url: newItem.url.trim(),
+      url: finalUrl,
       description: newItem.description.trim(),
       tags: newItem.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-      dateAdded: new Date().toISOString().split('T')[0]
+      dateAdded: new Date().toISOString().split('T')[0],
+      isUploaded: newItem.isFileUpload,
+      fileType: newItem.file?.type,
     };
 
     setItems(prevItems => [...prevItems, item]);
-    setNewItem({ type: newItem.type, title: '', url: '', description: '', tags: '' });
+    setNewItem({ 
+      type: newItem.type, 
+      title: '', 
+      url: '', 
+      description: '', 
+      tags: '', 
+      file: undefined,
+      isFileUpload: false 
+    });
     setShowAddForm(false);
+    setIsUploading(false);
   };
 
   const handleInputChange = (field: keyof NewItemForm, value: string) => {
-    setNewItem(prev => {
-      const updated = { ...prev, [field]: value };
-      return updated;
-    });
+    setNewItem(prev => ({ ...prev, [field]: value }));
   };
 
   const handleDeleteItem = (id: number) => {
@@ -187,7 +267,15 @@ const ClientKnowledgeBase: React.FC = () => {
   const completionPercentage = Math.min((totalResources / 10) * 100, 100);
 
   const resetForm = () => {
-    setNewItem({ type: itemTypes[0].value, title: '', url: '', description: '', tags: '' });
+    setNewItem({ 
+      type: itemTypes[0].value, 
+      title: '', 
+      url: '', 
+      description: '', 
+      tags: '', 
+      file: undefined,
+      isFileUpload: false 
+    });
     setShowAddForm(false);
   };
 
@@ -386,6 +474,7 @@ const ClientKnowledgeBase: React.FC = () => {
                 <button
                   onClick={resetForm}
                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                  disabled={isUploading}
                 >
                   <X className="w-5 h-5 text-gray-700 dark:text-gray-300" />
                 </button>
@@ -394,73 +483,136 @@ const ClientKnowledgeBase: React.FC = () => {
               <form onSubmit={handleAddItem} className="p-6">
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="resourceType" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Resource Type <span className="text-red-500">*</span>
                     </label>
                     <select
-                      id="resourceType"
                       value={newItem.type}
                       onChange={(e) => handleInputChange('type', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                       required
+                      disabled={isUploading}
                     >
                       {itemTypes.map(type => (
-                        <option key={type.value} value={type.value} className="text-gray-900 dark:text-gray-100">{type.label}</option>
+                        <option key={type.value} value={type.value}>{type.label}</option>
                       ))}
                     </select>
                   </div>
 
+                  {/* Toggle between URL and File Upload */}
                   <div>
-                    <label htmlFor="resourceTitle" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Add Resource By
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="uploadType"
+                          checked={!newItem.isFileUpload}
+                          onChange={() => setNewItem(prev => ({ ...prev, isFileUpload: false, file: undefined }))}
+                          className="mr-2"
+                          disabled={isUploading}
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">URL Link</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="uploadType"
+                          checked={newItem.isFileUpload}
+                          onChange={() => setNewItem(prev => ({ ...prev, isFileUpload: true, url: '' }))}
+                          className="mr-2"
+                          disabled={isUploading}
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Upload File</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Title <span className="text-red-500">*</span>
                     </label>
                     <input
-                      id="resourceTitle"
                       type="text"
                       value={newItem.title}
                       onChange={(e) => handleInputChange('title', e.target.value)}
-                      placeholder="e.g., About Our Company"
+                      placeholder="e.g., Company Pitch Deck"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                       required
+                      disabled={isUploading}
                     />
                   </div>
 
-                  <div>
-                    <label htmlFor="resourceUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      URL <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="resourceUrl"
-                      type="url"
-                      value={newItem.url}
-                      onChange={(e) => handleInputChange('url', e.target.value)}
-                      placeholder="https://example.com/about"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                      required
-                    />
-                  </div>
+                  {/* Conditional URL or File input */}
+                  {!newItem.isFileUpload ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        URL <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="url"
+                        value={newItem.url}
+                        onChange={(e) => handleInputChange('url', e.target.value)}
+                        placeholder="https://example.com/presentation.pdf"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                        required
+                        disabled={isUploading}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Upload File <span className="text-red-500">*</span>
+                      </label>
+                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
+                        <input
+                          type="file"
+                          accept=".pdf,.ppt,.pptx,.doc,.docx"
+                          onChange={handleFileChange}
+                          className="hidden"
+                          id="file-upload"
+                          required={newItem.isFileUpload}
+                          disabled={isUploading}
+                        />
+                        <label
+                          htmlFor="file-upload"
+                          className={`cursor-pointer flex flex-col items-center ${isUploading ? 'pointer-events-none opacity-50' : ''}`}
+                        >
+                          <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {newItem.file ? newItem.file.name : 'Click to upload PDF, PowerPoint, or Word document'}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            Max 10MB
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
-                    <label htmlFor="resourceDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                     <textarea
-                      id="resourceDescription"
                       value={newItem.description}
                       onChange={(e) => handleInputChange('description', e.target.value)}
                       placeholder="Brief description of what this resource contains..."
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                      disabled={isUploading}
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="resourceTags" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags</label>
                     <input
-                      id="resourceTags"
                       type="text"
                       value={newItem.tags}
                       onChange={(e) => handleInputChange('tags', e.target.value)}
-                      placeholder="company, overview, mission (comma separated)"
+                      placeholder="presentation, pitch, overview (comma separated)"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                      disabled={isUploading}
                     />
                   </div>
                 </div>
@@ -470,14 +622,23 @@ const ClientKnowledgeBase: React.FC = () => {
                     type="button"
                     onClick={resetForm}
                     className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    disabled={isUploading}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+                    className="flex-1 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={isUploading}
                   >
-                    Add Resource
+                    {isUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Uploading...
+                      </>
+                    ) : (
+                      newItem.isFileUpload ? 'Upload & Add' : 'Add Resource'
+                    )}
                   </button>
                 </div>
               </form>
@@ -491,6 +652,8 @@ const ClientKnowledgeBase: React.FC = () => {
             {filteredItems.map(item => {
               const typeConfig = getTypeConfig(item.type);
               const IconComponent = typeConfig.icon;
+              const fileIcon = getFileIcon(item.fileType, item.url);
+              
               return (
                 <div key={item.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
                   <div className="p-6">
@@ -500,8 +663,16 @@ const ClientKnowledgeBase: React.FC = () => {
                           <IconComponent className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{item.title}</h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{typeConfig.label}</p>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900 dark:text-gray-100">{item.title}</h3>
+                            {item.isUploaded && (
+                              <span className="text-lg" title="Uploaded file">{fileIcon}</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {typeConfig.label}
+                            {item.isUploaded && ' • Uploaded'}
+                          </p>
                         </div>
                       </div>
                       <button
@@ -515,6 +686,17 @@ const ClientKnowledgeBase: React.FC = () => {
 
                     {item.description && (
                       <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{item.description}</p>
+                    )}
+
+                    {/* PDF Preview for uploaded PDFs */}
+                    {canPreview(item) && (
+                      <div className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <iframe
+                          src={`${item.url}#toolbar=0&navpanes=0&scrollbar=0`}
+                          className="w-full h-48"
+                          title={`Preview of ${item.title}`}
+                        />
+                      </div>
                     )}
 
                     {item.tags.length > 0 && (
@@ -533,16 +715,31 @@ const ClientKnowledgeBase: React.FC = () => {
                         <Calendar className="w-3 h-3" />
                         {new Date(item.dateAdded).toLocaleDateString()}
                       </div>
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
-                      >
-                        <LinkIcon className="w-4 h-4" />
-                        View
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="flex gap-2">
+                        {/* Preview button for PDFs */}
+                        {canPreview(item) && (
+                          <button
+                            onClick={() => window.open(item.url, '_blank')}
+                            className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 text-sm font-medium transition-colors"
+                          >
+                            <Presentation className="w-4 h-4" />
+                            Preview
+                          </button>
+                        )}
+                        
+                        {/* View/Download button */}
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={item.isUploaded ? item.title : undefined}
+                          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
+                        >
+                          <LinkIcon className="w-4 h-4" />
+                          {item.isUploaded ? 'Download' : 'View'}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>

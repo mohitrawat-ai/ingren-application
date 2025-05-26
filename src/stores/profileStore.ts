@@ -1,91 +1,65 @@
-// src/stores/profileStore.ts
+// src/stores/profileStore.ts - Simplified store for UI state only
+
 import { create } from 'zustand';
-import { 
-  Profile, 
-  ProfileFilters, 
-  ProviderProfileFilters,
-  ProfilePaginationInfo,
-  SaveProfileListParams
-} from '@/types/profile';
+import { Profile, ProfileFilters } from '@/types/profile';
 
-// Profile API functions (we'll create these next)
-import * as profileApi from '@/lib/actions/profile';
-
-interface ProfileSearchState {
-  // Search state
+interface ProfileUIState {
+  // Search filters (UI state)
   query: string;
   filters: ProfileFilters;
-  profiles: Profile[];
+  
+  // Selection state (UI state)
   selectedProfiles: Profile[];
-  loadingProfiles: boolean;
-  profilePagination: ProfilePaginationInfo | null;
   
-  // Profile details
-  currentProfile: Profile | null;
-  loadingCurrentProfile: boolean;
-
-  // List management state
+  // Current profile view (UI state)
+  currentProfileId: string | null;
+  
+  // List creation state (UI state)
   newListName: string;
-  savingList: boolean;
   
-  // Filter options
-  filterOptions: {
-    industries: string[];
-    managementLevels: string[];
-    seniorityLevels: string[];
-    departments: string[];
-    companySizes: string[];
-    usStates: string[];
-    countries: string[];
-  } | null;
-  loadingFilterOptions: boolean;
+  // Pagination state (UI state)
+  currentPage: number;
+  pageSize: number;
   
-  // Actions - Search
+  // UI Actions
   setQuery: (query: string) => void;
   updateFilter: (path: string, value: unknown) => void;
-  searchProfiles: (page?: number) => Promise<void>;
+  clearFilters: () => void;
   
-  // Actions - Selection
+  // Selection actions
   toggleProfileSelection: (profile: Profile) => void;
   bulkSelectProfiles: (profiles: Profile[]) => void;
   bulkDeselectProfiles: (profileIds: string[]) => void;
   clearProfileSelections: () => void;
   
-  // Actions - Profile details
-  fetchProfile: (id: string) => Promise<void>;
-  clearCurrentProfile: () => void;
+  // Navigation actions
+  setCurrentProfileId: (id: string | null) => void;
   
-  // Actions - List management
+  // List management
   setNewListName: (name: string) => void;
-  saveAsList: () => Promise<number | null>;
   
-  // Actions - Filter options
-  fetchFilterOptions: () => Promise<void>;
+  // Pagination actions
+  setPage: (page: number) => void;
+  setPageSize: (size: number) => void;
   
-  // Actions - UI
+  // Reset function
   reset: () => void;
 }
 
-export const useProfileStore = create<ProfileSearchState>()((set, get) => ({
+export const useProfileStore = create<ProfileUIState>()((set, get) => ({
   // Initial state
   query: '',
   filters: {},
-  profiles: [],
   selectedProfiles: [],
-  loadingProfiles: false,
-  profilePagination: null,
-  
-  currentProfile: null,
-  loadingCurrentProfile: false,
-  
+  currentProfileId: null,
   newListName: '',
-  savingList: false,
+  currentPage: 1,
+  pageSize: 10,
   
-  filterOptions: null,
-  loadingFilterOptions: false,
-  
-  // Actions - Search
-  setQuery: (query) => set({ query }),
+  // Search actions
+  setQuery: (query) => {
+    set({ query, currentPage: 1 }); // Reset to first page on new search
+  },
   
   updateFilter: (path, value) => {
     const { filters } = get();
@@ -128,66 +102,14 @@ export const useProfileStore = create<ProfileSearchState>()((set, get) => ({
     };
     
     const updatedFilters = setNestedProperty(filters, pathParts, value);
-    set({ filters: updatedFilters });
+    set({ filters: updatedFilters, currentPage: 1 }); // Reset to first page on filter change
   },
   
-  searchProfiles: async (page = 1) => {
-    const { query, filters } = get();
-    
-    set({ loadingProfiles: true });
-    try {
-      // Convert to provider API format
-      const providerFilters: ProviderProfileFilters = {
-        ...filters,
-        keywords: query,
-        page,
-        pageSize: 10
-      };
-      
-      // First get profile IDs
-      const searchResponse = await profileApi.searchProfileIds(providerFilters);
-      
-      if (searchResponse.profileIds.length === 0) {
-        set({ 
-          profiles: [], 
-          profilePagination: {
-            page,
-            pageSize: 10,
-            total: 0,
-            pages: 0
-          },
-          loadingProfiles: false 
-        });
-        return;
-      }
-      
-      // Calculate pagination for current page
-      const pageSize = 10;
-      const startIndex = (page - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      const pageProfileIds = searchResponse.profileIds.slice(startIndex, endIndex);
-      
-      // Get full profile data for current page
-      const profilesResponse = await profileApi.getBatchProfiles(pageProfileIds);
-      
-      set({ 
-        profiles: profilesResponse.profiles,
-        profilePagination: {
-          page,
-          pageSize,
-          total: searchResponse.profileIds.length,
-          pages: Math.ceil(searchResponse.profileIds.length / pageSize)
-        },
-        loadingProfiles: false 
-      });
-    } catch (error) {
-      set({ loadingProfiles: false });
-      console.error('Error searching profiles:', error);
-      throw error;
-    }
+  clearFilters: () => {
+    set({ filters: {}, currentPage: 1 });
   },
   
-  // Actions - Selection
+  // Selection actions
   toggleProfileSelection: (profile) => {
     const { selectedProfiles } = get();
     const isSelected = selectedProfiles.some(p => p.id === profile.id);
@@ -212,7 +134,6 @@ export const useProfileStore = create<ProfileSearchState>()((set, get) => ({
       selectedProfiles: [...selectedProfiles, ...newProfiles]
     });
   },
-
   
   bulkDeselectProfiles: (profileIds) => {
     const { selectedProfiles } = get();
@@ -223,77 +144,24 @@ export const useProfileStore = create<ProfileSearchState>()((set, get) => ({
   
   clearProfileSelections: () => set({ selectedProfiles: [] }),
   
-  // Actions - Profile details
-  fetchProfile: async (id) => {
-    set({ loadingCurrentProfile: true });
-    try {
-      const profile = await profileApi.getProfile(id);
-      set({ currentProfile: profile, loadingCurrentProfile: false });
-    } catch (error) {
-      set({ loadingCurrentProfile: false });
-      console.error('Error fetching profile:', error);
-      throw error;
-    }
-  },
+  // Navigation actions
+  setCurrentProfileId: (id) => set({ currentProfileId: id }),
   
-  clearCurrentProfile: () => set({ currentProfile: null }),
-  
-  // Actions - List management
+  // List management
   setNewListName: (name) => set({ newListName: name }),
   
-  saveAsList: async () => {
-    const { newListName, selectedProfiles, filters, query } = get();
-    
-    if (!newListName || selectedProfiles.length === 0) {
-      return null;
-    }
-    
-    set({ savingList: true });
-    try {
-      const listParams: SaveProfileListParams = {
-        name: newListName,
-        profiles: selectedProfiles,
-        totalResults: selectedProfiles.length,
-        metadata: {
-          searchFilters: filters,
-          query,
-        }
-      };
-      
-      const newList = await profileApi.saveProfileList(listParams);
-      
-      set({ savingList: false, newListName: '' });
-      return newList.id;
-    } catch (error) {
-      set({ savingList: false });
-      console.error('Error saving profile list:', error);
-      throw error;
-    }
-  },
+  // Pagination actions
+  setPage: (page) => set({ currentPage: page }),
+  setPageSize: (size) => set({ pageSize: size, currentPage: 1 }),
   
-  
-  // Actions - Filter options
-  fetchFilterOptions: async () => {
-    set({ loadingFilterOptions: true });
-    try {
-      const options = await profileApi.getFilterOptions();
-      set({ filterOptions: options, loadingFilterOptions: false });
-    } catch (error) {
-      set({ loadingFilterOptions: false });
-      console.error('Error fetching filter options:', error);
-      throw error;
-    }
-  },
-  
-  // Actions - UI
+  // Reset function
   reset: () => set({
     query: '',
     filters: {},
-    profiles: [],
     selectedProfiles: [],
-    profilePagination: null,
-    currentProfile: null,
+    currentProfileId: null,
     newListName: '',
-    filterOptions: null,
+    currentPage: 1,
+    pageSize: 10,
   }),
 }));

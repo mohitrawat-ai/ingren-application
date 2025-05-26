@@ -1,20 +1,25 @@
-// src/app/(dashboard)/profiles/search/page.tsx
+// src/app/(dashboard)/profiles/search/page.tsx - Complete implementation
+
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Filter,
-  Search,
+import { 
+  ArrowLeft, 
+  Filter, 
+  Search, 
+  Save, 
+  Download,
+  Grid,
+  List,
+  RefreshCw,
+  AlertTriangle 
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Sheet,
   SheetContent,
@@ -23,47 +28,79 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
+// Custom hooks
+import { useProfileStore } from "@/stores/profileStore";
+import { 
+  useFilterOptions, 
+  useProfileSearchWithData, 
+} from "@/hooks/useProfileQueries";
 
-// Import our components
+// Components
 import { ProfileFiltersPanel } from "@/components/profile/search/ProfileFiltersPanel";
-import { ProfileDataTable } from "@/components/profile/search/ProfileDataTable";
-import { ProfileSelectionToolbar } from "@/components/profile/search/ProfileSelectionToolbar";
-import { SaveListDialog } from "@/components/prospect/search/SaveListDialog";
+import { ProfileList } from "@/components/profile/ProfileList";
+import { ProfilePagination } from "@/components/profile/ProfilePagination";
+import { SaveProfileListDialog } from "@/components/profile/SaveProfileListDialog";
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
-// Import our store
-import { useProfileStore } from "@/stores/profileStore";
-
 export default function ProfileSearchPage() {
-  const router = useRouter();
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  // Local state
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [searchInputValue, setSearchInputValue] = useState('');
 
-  // Get state and actions from profile store
-  const {
-    query,
+  // Zustand store state
+  const { 
+    query, 
+    filters, 
+    selectedProfiles, 
+    currentPage, 
+    pageSize,
     setQuery,
-    filters,
-    selectedProfiles,
-    loadingProfiles,
-    searchProfiles,
-    newListName,
-    setNewListName,
-    savingList,
-    saveAsList,
+    setPage,
+    setPageSize,
+    toggleProfileSelection,
+    bulkSelectProfiles,
+    bulkDeselectProfiles,
+    clearProfileSelections 
   } = useProfileStore();
 
-  const [searchInputValue, setSearchInputValue] = useState(query);
+  // React Query hooks
+  const {
+    data: filterOptions,
+    error: filterOptionsError,
+    refetch: refetchFilterOptions
+  } = useFilterOptions();
 
-  const handleSearch = async () => {
+  // Convert UI filters to API format
+  const apiFilters = useMemo(() => ({
+    ...filters,
+    keywords: query,
+    page: currentPage,
+    pageSize,
+  }), [filters, query, currentPage, pageSize]);
+
+  // Main search query
+  const {
+    profiles,
+    totalResults,
+    pagination,
+    isLoading,
+    error: searchError,
+    refetchSearch,
+  } = useProfileSearchWithData(apiFilters, currentPage, pageSize);
+
+  // Event handlers
+  const handleSearch = () => {
     setQuery(searchInputValue);
-    try {
-      await searchProfiles(1); // Always start from page 1 when searching
-    } catch (error) {
-      console.error("Error searching profiles:", error);
-      toast.error("Failed to search profiles");
-    }
+    setPage(1); // Reset to first page on new search
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -72,41 +109,76 @@ export default function ProfileSearchPage() {
     }
   };
 
-  const handleSaveList = async () => {
-    if (!newListName.trim()) {
-      toast.error("Please enter a list name");
-      return;
-    }
-
-    if (selectedProfiles.length === 0) {
-      toast.error("Please select at least one profile");
-      return;
-    }
-
-    try {
-      const newListId = await saveAsList();
-
-      if (newListId) {
-        toast.success("Profile list created successfully");
-        setSaveDialogOpen(false);
-        router.push(`/profile-lists/${newListId}`);
-      }
-    } catch (error) {
-      console.error("Error saving profile list:", error);
-      toast.error("Failed to save profile list");
+  const handleSelectAll = () => {
+    const unselectedProfiles = profiles.filter(
+      profile => !selectedProfiles.some(selected => selected.id === profile.id)
+    );
+    
+    if (unselectedProfiles.length > 0) {
+      bulkSelectProfiles(unselectedProfiles);
+    } else {
+      // All are selected, deselect current page
+      const currentPageIds = profiles.map(p => p.id);
+      bulkDeselectProfiles(currentPageIds);
     }
   };
 
+  const handleExportCSV = () => {
+    if (selectedProfiles.length === 0) {
+      return;
+    }
+
+    const headers = [
+      "First Name", "Last Name", "Full Name", "Job Title", "Department", 
+      "Company", "Industry", "Email", "City", "State", "Country", 
+      "Management Level", "Seniority Level", "Decision Maker"
+    ];
+    
+    const csvContent = [
+      headers.join(","),
+      ...selectedProfiles.map(profile => [
+        `"${profile.firstName || ''}"`,
+        `"${profile.lastName || ''}"`,
+        `"${profile.fullName || ''}"`,
+        `"${profile.jobTitle || ''}"`,
+        `"${profile.department || ''}"`,
+        `"${profile.company?.name || ''}"`,
+        `"${profile.company?.industry || ''}"`,
+        `"${profile.email || ''}"`,
+        `"${profile.city || ''}"`,
+        `"${profile.state || ''}"`,
+        `"${profile.country || ''}"`,
+        `"${profile.managementLevel || ''}"`,
+        `"${profile.seniorityLevel || ''}"`,
+        `"${profile.isDecisionMaker ? 'Yes' : 'No'}"`
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `profile_search_results_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Compute selection states
+  const allCurrentPageSelected = profiles.length > 0 && 
+    profiles.every(profile => selectedProfiles.some(selected => selected.id === profile.id));
+  
+
+  // Get active filters count
   const getActiveFiltersCount = () => {
     let count = 0;
     
-    // Count location filters
     if (filters.location?.countries?.length) count += filters.location.countries.length;
     if (filters.location?.states?.length) count += filters.location.states.length;
     if (filters.location?.cities?.length) count += filters.location.cities.length;
     if (filters.location?.includeRemote) count += 1;
     
-    // Count role filters
     if (filters.role?.jobTitles?.length) count += filters.role.jobTitles.length;
     if (filters.role?.departments?.length) count += filters.role.departments.length;
     if (filters.role?.managementLevels?.length) count += filters.role.managementLevels.length;
@@ -114,16 +186,13 @@ export default function ProfileSearchPage() {
     if (filters.role?.isDecisionMaker) count += 1;
     if (filters.role?.keywords) count += 1;
     
-    // Count company filters
     if (filters.company?.industries?.length) count += filters.company.industries.length;
     if (filters.company?.employeeCountRange?.min || filters.company?.employeeCountRange?.max) count += 1;
-    if (filters.company?.revenueRange?.min || filters.company?.revenueRange?.max) count += 1;
     if (filters.company?.foundedAfter || filters.company?.foundedBefore) count += 1;
     if (filters.company?.isB2B) count += 1;
     if (filters.company?.hasRecentFunding) count += 1;
     if (filters.company?.companyKeywords) count += 1;
     
-    // Count advanced filters
     if (filters.advanced?.skills?.length) count += filters.advanced.skills.length;
     if (filters.advanced?.tenureRange?.min || filters.advanced?.tenureRange?.max) count += 1;
     if (filters.advanced?.recentJobChange) count += 1;
@@ -143,16 +212,56 @@ export default function ProfileSearchPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold">Search Profiles</h1>
+            <div>
+              <h1 className="text-3xl font-bold">Search Profiles</h1>
+              <p className="text-muted-foreground">
+                Find prospects using enhanced profile data and company context
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Selection Toolbar */}
-        <div className="mb-4">
-          <ProfileSelectionToolbar 
-            onSave={() => setSaveDialogOpen(true)}
-          />
-        </div>
+        {selectedProfiles.length > 0 && (
+          <div className="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Badge variant="secondary" className="px-3 py-1">
+                  {selectedProfiles.length} profiles selected
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  Across all pages
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCSV}
+                >
+                  <Download className="mr-1 h-3 w-3" />
+                  Export CSV
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setSaveDialogOpen(true)}
+                >
+                  <Save className="mr-1 h-3 w-3" />
+                  Save as List
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearProfileSelections}
+                  className="text-destructive hover:text-destructive"
+                >
+                  Clear All
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Search and Filter Bar */}
         <div className="flex items-center gap-4 mb-6 p-4 border rounded-lg bg-muted/30">
@@ -169,10 +278,20 @@ export default function ProfileSearchPage() {
           
           <Button 
             onClick={handleSearch} 
-            disabled={loadingProfiles}
+            disabled={isLoading}
             size="lg"
           >
-            {loadingProfiles ? "Searching..." : "Search"}
+            {isLoading ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Searching...
+              </>
+            ) : (
+              <>
+                <Search className="mr-2 h-4 w-4" />
+                Search
+              </>
+            )}
           </Button>
           
           {/* Mobile Filters */}
@@ -196,7 +315,7 @@ export default function ProfileSearchPage() {
                 </SheetDescription>
               </SheetHeader>
               <div className="mt-6">
-                <ProfileFiltersPanel />
+                <ProfileFiltersPanel filterOptions={filterOptions} />
               </div>
             </SheetContent>
           </Sheet>
@@ -211,10 +330,42 @@ export default function ProfileSearchPage() {
           </div>
         </div>
 
+        {/* Error Alerts */}
+        {filterOptionsError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Failed to load filter options. Using defaults.</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchFilterOptions()}
+              >
+                <RefreshCw className="h-3 w-3" />
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {searchError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Search failed: {searchError.message}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchSearch()}
+              >
+                <RefreshCw className="h-3 w-3" />
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex flex-1 overflow-hidden border rounded-lg">
           {/* Desktop Filters Sidebar */}
           <div className="hidden lg:block w-80 border-r bg-muted/30">
-            <ScrollArea className="h-full">
+            <div className="h-full overflow-y-auto">
               <div className="p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Filter className="h-4 w-4" />
@@ -226,27 +377,88 @@ export default function ProfileSearchPage() {
                   )}
                 </div>
 
-                <ProfileFiltersPanel />
+                <ProfileFiltersPanel filterOptions={filterOptions} />
               </div>
-            </ScrollArea>
+            </div>
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 overflow-hidden">
-            <div className="h-full overflow-auto">
-              <ProfileDataTable />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Results Header */}
+            {!isLoading && totalResults > 0 && (
+              <div className="flex items-center justify-between p-4 border-b bg-background">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="font-medium">{totalResults.toLocaleString()}</span>
+                    <span className="text-muted-foreground"> profiles found</span>
+                  </div>
+                  
+                  {profiles.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAll}
+                    >
+                      {allCurrentPageSelected ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* View Mode Toggle */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        {viewMode === 'cards' ? <Grid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => setViewMode('cards')}>
+                        <Grid className="mr-2 h-4 w-4" />
+                        Cards View
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setViewMode('table')}>
+                        <List className="mr-2 h-4 w-4" />
+                        Table View
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            )}
+
+            {/* Results Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4">
+                <ProfileList 
+                  profiles={profiles}
+                  selectedProfiles={selectedProfiles}
+                  onToggleSelection={toggleProfileSelection}
+                  viewMode={viewMode}
+                />
+              </div>
             </div>
+
+            {/* Pagination */}
+            {pagination && pagination.pages > 1 && (
+              <div className="border-t p-4 bg-background">
+                <ProfilePagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.pages}
+                  totalResults={pagination.total}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        <SaveListDialog
+        {/* Save List Dialog */}
+        <SaveProfileListDialog
           open={saveDialogOpen}
           onOpenChange={setSaveDialogOpen}
-          listName={newListName}
-          onListNameChange={setNewListName}
-          onSave={handleSaveList}
-          isSaving={savingList}
-          selectedCount={selectedProfiles.length}
         />
       </div>
     </ErrorBoundary>

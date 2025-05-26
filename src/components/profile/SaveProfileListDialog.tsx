@@ -258,7 +258,11 @@ export function SaveProfileListDialog({
                   )}
                   {filters.location?.states?.length && (
                     <div className="text-xs">
-                      <span className="font-medium">Locations:</span> {filters.location.states.join(", ")}
+                      <span className="font-medium">Locations:</span> {
+                        Array.isArray(filters.location.states) ?
+                        filters.location.states.join(", ") : 
+                        filters.location.states
+                      }
                     </div>
                   )}
                 </div>

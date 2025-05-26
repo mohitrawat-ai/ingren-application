@@ -346,7 +346,6 @@ export async function getBatchProfiles(ids: string[]): Promise<ProfileBatchRespo
 export async function getFilterOptions(): Promise<{
   industries: string[];
   managementLevels: string[];
-  seniorityLevels: string[];
   departments: string[];
   companySizes: string[];
   usStates: string[];
@@ -358,7 +357,6 @@ export async function getFilterOptions(): Promise<{
       "Retail", "Education", "Real Estate", "Marketing", "Consulting"
     ],
     managementLevels: ["executive", "manager", "individual_contributor"],
-    seniorityLevels: ["c-level", "vp", "director", "manager", "senior", "mid-level", "junior"],
     departments: [
       "Engineering", "Sales", "Marketing", "Operations", "Finance", 
       "Human Resources", "Product", "Customer Success", "Legal"

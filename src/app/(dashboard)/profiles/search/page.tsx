@@ -1,4 +1,4 @@
-// src/app/(dashboard)/profiles/search/page.tsx - Fixed setState during render issue
+// src/app/(dashboard)/profiles/search/page.tsx - Updated with clean UX flow
 
 "use client";
 
@@ -14,7 +14,10 @@ import {
   Grid,
   List,
   RefreshCw,
-  AlertTriangle 
+  AlertTriangle,
+  AlertCircle,
+  Check,
+  X
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -58,63 +61,30 @@ export default function ProfileSearchPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [searchInputValue, setSearchInputValue] = useState('');
-  const [hasSearched, setHasSearched] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false); // NEW: Track initialization
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Zustand store state
+  // Zustand store state - UPDATED to use user-friendly methods
   const { 
-    query, 
-    filters, 
+    query,                    // Applied query (used for search)
+    draftQuery,              // Draft query (user is typing)
+    appliedFilters,          // Applied filters (used for search)
+    hasSearched,             // Whether user has performed a search
     selectedProfiles, 
     currentPage, 
     pageSize,
-    setQuery,
+    setDraftQuery,           // Set draft query
+    applyFilters,            // Apply draft to search
+    resetSearch,             // Reset everything
+    discardChanges,          // NEW: Discard draft changes
     setPage,
     setPageSize,
     toggleProfileSelection,
     bulkSelectProfiles,
     bulkDeselectProfiles,
-    clearProfileSelections 
+    clearProfileSelections,
+    hasUnsavedChanges,       // NEW: User-friendly pending changes check
+    getCurrentFiltersCount,  // NEW: User-friendly filter count
   } = useProfileStore();
-
-  // FIXED: Handle URL parameters in useEffect to avoid setState during render
-  useEffect(() => {
-    if (!isInitialized) {
-      // Get initial state from URL parameters
-      const urlQuery = searchParams.get('q') || '';
-      const urlPage = parseInt(searchParams.get('page') || '1');
-      const urlPageSize = parseInt(searchParams.get('pageSize') || '10');
-      const addToList = searchParams.get('addToList');
-      
-      // Only update if values are different from current state
-      if (urlQuery !== query) {
-        setSearchInputValue(urlQuery);
-        setQuery(urlQuery);
-      }
-      
-      if (urlPage !== currentPage) {
-        setPage(urlPage);
-      }
-      
-      if (urlPageSize !== pageSize) {
-        setPageSize(urlPageSize);
-      }
-      
-      // If there's a search query in URL, mark as searched
-      if (urlQuery) {
-        setHasSearched(true);
-      }
-      
-      // Handle addToList parameter if present
-      if (addToList) {
-        // You can add logic here to show a message about adding to a specific list
-        console.log('Adding to list:', addToList);
-      }
-      
-      setIsInitialized(true);
-    }
-  }, [isInitialized, searchParams, query, currentPage, pageSize, setQuery, setPage, setPageSize]);
 
   // React Query hooks
   const {
@@ -123,15 +93,45 @@ export default function ProfileSearchPage() {
     refetch: refetchFilterOptions
   } = useFilterOptions();
 
-  // Convert UI filters to API format
-  const apiFilters = useMemo(() => ({
-    ...filters,
+
+// Fixed useEffect in ProfileSearchPage - prevent router updates during render
+
+// Fixed useEffect in ProfileSearchPage - prevent router updates during render
+
+useEffect(() => {
+  if (!isInitialized) {
+    const urlQuery = searchParams.get('q') || '';
+    const urlPage = parseInt(searchParams.get('page') || '1');
+    const urlPageSize = parseInt(searchParams.get('pageSize') || '10');
+    
+    // FIXED: Remove dependency checks that could cause loops
+    setDraftQuery(urlQuery);
+    setPage(urlPage);
+    setPageSize(urlPageSize);
+    
+    setIsInitialized(true);
+  }
+}, [isInitialized, searchParams, setDraftQuery, setPage, setPageSize]); // Include Zustand actions
+
+// FIXED: Also ensure the apiFilters memo doesn't cause issues
+const apiFilters = useMemo(() => {
+  // Don't compute filters if not initialized to prevent premature API calls
+  if (!isInitialized || !hasSearched) {
+    return {
+      page: currentPage,
+      pageSize,
+    };
+  }
+  
+  return {
+    ...appliedFilters,
     keywords: query,
     page: currentPage,
     pageSize,
-  }), [filters, query, currentPage, pageSize]);
+  };
+}, [isInitialized, hasSearched, appliedFilters, query, currentPage, pageSize]);
 
-  // Main search query - Only enabled when user has searched
+  // Main search query
   const {
     profiles,
     totalResults,
@@ -139,17 +139,16 @@ export default function ProfileSearchPage() {
     isLoading,
     error: searchError,
     refetchSearch,
+    noResults,
   } = useProfileSearchWithData(apiFilters, currentPage, pageSize, hasSearched);
 
-  // FIXED: Moved event handlers inside the component but not in render phase
+  // Event handlers
   const handleSearch = () => {
-    setQuery(searchInputValue);
-    setPage(1); // Reset to first page on new search
-    setHasSearched(true);
+    applyFilters();
     
-    // Update URL without causing re-render
+    // Update URL
     const newUrl = new URL(window.location.href);
-    newUrl.searchParams.set('q', searchInputValue);
+    newUrl.searchParams.set('q', draftQuery);
     newUrl.searchParams.set('page', '1');
     router.replace(newUrl.toString(), { scroll: false });
   };
@@ -158,6 +157,20 @@ export default function ProfileSearchPage() {
     if (e.key === 'Enter') {
       handleSearch();
     }
+  };
+
+  const handleReset = () => {
+    resetSearch();
+    
+    // Clear URL params
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('q');
+    newUrl.searchParams.delete('page');
+    router.replace(newUrl.toString(), { scroll: false });
+  };
+
+  const handleDiscardChanges = () => {
+    discardChanges();
   };
 
   const handlePageChange = (page: number) => {
@@ -171,7 +184,7 @@ export default function ProfileSearchPage() {
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
-    setPage(1); // Reset to first page
+    setPage(1);
     
     // Update URL
     const newUrl = new URL(window.location.href);
@@ -188,16 +201,13 @@ export default function ProfileSearchPage() {
     if (unselectedProfiles.length > 0) {
       bulkSelectProfiles(unselectedProfiles);
     } else {
-      // All are selected, deselect current page
       const currentPageIds = profiles.map(p => p.id);
       bulkDeselectProfiles(currentPageIds);
     }
   };
 
   const handleExportCSV = () => {
-    if (selectedProfiles.length === 0) {
-      return;
-    }
+    if (selectedProfiles.length === 0) return;
 
     const headers = [
       "First Name", "Last Name", "Full Name", "Job Title", "Department", 
@@ -240,41 +250,11 @@ export default function ProfileSearchPage() {
   const allCurrentPageSelected = profiles.length > 0 && 
     profiles.every(profile => selectedProfiles.some(selected => selected.id === profile.id));
 
-  // Get active filters count
-  const getActiveFiltersCount = () => {
-    let count = 0;
-    
-    if (filters.location?.countries?.length) count += filters.location.countries.length;
-    if (filters.location?.states?.length) count += filters.location.states.length;
-    if (filters.location?.cities?.length) count += filters.location.cities.length;
-    if (filters.location?.includeRemote) count += 1;
-    
-    if (filters.role?.jobTitles?.length) count += filters.role.jobTitles.length;
-    if (filters.role?.departments?.length) count += filters.role.departments.length;
-    if (filters.role?.managementLevels?.length) count += filters.role.managementLevels.length;
-    if (filters.role?.seniorityLevels?.length) count += filters.role.seniorityLevels.length;
-    if (filters.role?.isDecisionMaker) count += 1;
-    if (filters.role?.keywords) count += 1;
-    
-    if (filters.company?.industries?.length) count += filters.company.industries.length;
-    if (filters.company?.employeeCountRange?.min || filters.company?.employeeCountRange?.max) count += 1;
-    if (filters.company?.revenueRange?.min || filters.company?.revenueRange?.max) count += 1;
-    if (filters.company?.foundedAfter || filters.company?.foundedBefore) count += 1;
-    if (filters.company?.isB2B) count += 1;
-    if (filters.company?.hasRecentFunding) count += 1;
-    if (filters.company?.companyKeywords) count += 1;
-    
-    if (filters.advanced?.skills?.length) count += filters.advanced.skills.length;
-    if (filters.advanced?.tenureRange?.min || filters.advanced?.tenureRange?.max) count += 1;
-    if (filters.advanced?.recentJobChange) count += 1;
-    if (filters.advanced?.keywords) count += 1;
-    
-    return count;
-  };
+  // Check if search criteria exists
+  const hasSearchCriteria = draftQuery.trim() || getCurrentFiltersCount() > 0;
+  const unsavedChanges = hasUnsavedChanges();
 
-  const hasSearchCriteria = searchInputValue.trim() || getActiveFiltersCount() > 0;
-
-  // Don't render until initialized to prevent hydration issues
+  // Don't render until initialized
   if (!isInitialized) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -349,69 +329,113 @@ export default function ProfileSearchPage() {
         )}
 
         {/* Search and Filter Bar */}
-        <div className="flex items-center gap-4 mb-6 p-4 border rounded-lg bg-muted/30">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search profiles by name, title, company, or keywords..."
-              value={searchInputValue}
-              onChange={(e) => setSearchInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="pl-9"
-            />
-          </div>
-          
-          <Button 
-            onClick={handleSearch} 
-            disabled={isLoading || !hasSearchCriteria}
-            size="lg"
-          >
-            {isLoading ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Searching...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-4 w-4" />
-                Search
-              </>
-            )}
-          </Button>
-          
-          {/* Mobile Filters */}
-          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="lg:hidden">
-                <Filter className="mr-2 h-4 w-4" />
-                Filters
-                {getActiveFiltersCount() > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {getActiveFiltersCount()}
-                  </Badge>
-                )}
+        <div className="space-y-4 mb-6">
+          {/* UPDATED: Clean unsaved changes alert */}
+          {unsavedChanges && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between">
+                  <span>You have unsaved search changes.</span>
+                  <div className="flex items-center gap-2 ml-4">
+                    <Button
+                      size="sm"
+                      onClick={handleSearch}
+                      className="h-7"
+                    >
+                      <Check className="mr-1 h-3 w-3" />
+                      Apply Changes
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDiscardChanges}
+                      className="h-7"
+                    >
+                      <X className="mr-1 h-3 w-3" />
+                      Discard
+                    </Button>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Search bar */}
+          <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search profiles by name, title, company, or keywords..."
+                value={draftQuery}
+                onChange={(e) => setDraftQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="pl-9"
+              />
+            </div>
+            
+            <Button 
+              onClick={handleSearch} 
+              disabled={isLoading || !hasSearchCriteria}
+              size="lg"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  {hasSearched ? 'Search Again' : 'Search'}
+                </>
+              )}
+            </Button>
+
+            {hasSearched && (
+              <Button 
+                variant="outline"
+                onClick={handleReset}
+                disabled={isLoading}
+              >
+                Reset
               </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-80">
-              <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
-                <SheetDescription>
-                  Refine your profile search with filters
-                </SheetDescription>
-              </SheetHeader>
-              <div className="mt-6">
-                <ProfileFiltersPanel filterOptions={filterOptions} />
-              </div>
-            </SheetContent>
-          </Sheet>
-          
-          {/* Desktop Filters Indicator */}
-          <div className="hidden lg:flex items-center gap-2">
-            {getActiveFiltersCount() > 0 && (
-              <Badge variant="outline">
-                {getActiveFiltersCount()} filters active
-              </Badge>
             )}
+            
+            {/* Mobile Filters */}
+            <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="lg:hidden">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filters
+                  {getCurrentFiltersCount() > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {getCurrentFiltersCount()}
+                    </Badge>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-80">
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                  <SheetDescription>
+                    Refine your profile search with filters
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6">
+                  <ProfileFiltersPanel filterOptions={filterOptions} />
+                </div>
+              </SheetContent>
+            </Sheet>
+            
+            {/* UPDATED: Clean desktop filters indicator */}
+            <div className="hidden lg:flex items-center gap-2">
+              {getCurrentFiltersCount() > 0 && (
+                <Badge variant="secondary">
+                  {getCurrentFiltersCount()} {getCurrentFiltersCount() === 1 ? 'filter' : 'filters'} active
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
@@ -456,9 +480,9 @@ export default function ProfileSearchPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <Filter className="h-4 w-4" />
                   <h3 className="font-semibold">Filters</h3>
-                  {getActiveFiltersCount() > 0 && (
+                  {getCurrentFiltersCount() > 0 && (
                     <Badge variant="secondary">
-                      {getActiveFiltersCount()}
+                      {getCurrentFiltersCount()}
                     </Badge>
                   )}
                 </div>
@@ -477,59 +501,112 @@ export default function ProfileSearchPage() {
                   <Search className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-xl font-semibold mb-2">Ready to search profiles</h3>
                   <p className="text-muted-foreground mb-6">
-                    Enter search keywords or apply filters, then click the search button to find profiles.
+                    Configure your search criteria and filters, then click the search button to find profiles.
                   </p>
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <p>• Search by name, job title, or company</p>
+                    <p>• Search by name, job title, or company keywords</p>
                     <p>• Use filters to narrow by location, industry, and role level</p>
                     <p>• Find decision makers with enhanced profile data</p>
+                    <p>• Search only runs when you click the search button</p>
+                  </div>
+                  
+                  {hasSearchCriteria && (
+                    <div className="mt-6">
+                      <Button onClick={handleSearch} size="lg">
+                        <Search className="mr-2 h-4 w-4" />
+                        Search Now
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : isLoading ? (
+              // Loading state
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-medium mb-2">Searching profiles...</h3>
+                  <p className="text-muted-foreground">
+                    This may take a few moments
+                  </p>
+                </div>
+              </div>
+            ) : noResults ? (
+              // No results state
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center max-w-md">
+                  <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No profiles found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    No profiles match your current search criteria. Try adjusting your filters or search terms.
+                  </p>
+                  <div className="text-sm text-muted-foreground mb-6">
+                    <p>Current search:</p>
+                    <div className="mt-2 p-2 bg-muted rounded text-left">
+                      {query && <div>Query: &quot;{query}&quot;</div>}
+                      {getCurrentFiltersCount() > 0 && (
+                        <div>Filters: {getCurrentFiltersCount()} active</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    <Button variant="outline" onClick={handleReset}>
+                      Reset Search
+                    </Button>
+                    <Button onClick={() => refetchSearch()}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Retry
+                    </Button>
                   </div>
                 </div>
               </div>
             ) : (
               <>
                 {/* Results Header */}
-                {!isLoading && totalResults > 0 && (
-                  <div className="flex items-center justify-between p-4 border-b bg-background">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <span className="font-medium">{totalResults.toLocaleString()}</span>
-                        <span className="text-muted-foreground"> profiles found</span>
-                      </div>
-                      
-                      {profiles.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSelectAll}
-                        >
-                          {allCurrentPageSelected ? 'Deselect All' : 'Select All'}
-                        </Button>
+                <div className="flex items-center justify-between p-4 border-b bg-background">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <span className="font-medium">{totalResults.toLocaleString()}</span>
+                      <span className="text-muted-foreground"> profiles found</span>
+                      {unsavedChanges && (
+                        <Badge variant="outline" className="ml-2">
+                          Changes pending
+                        </Badge>
                       )}
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      {/* View Mode Toggle */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            {viewMode === 'cards' ? <Grid className="h-4 w-4" /> : <List className="h-4 w-4" />}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => setViewMode('cards')}>
-                            <Grid className="mr-2 h-4 w-4" />
-                            Cards View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setViewMode('table')}>
-                            <List className="mr-2 h-4 w-4" />
-                            Table View
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    
+                    {profiles.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAll}
+                      >
+                        {allCurrentPageSelected ? 'Deselect All' : 'Select All'}
+                      </Button>
+                    )}
                   </div>
-                )}
+
+                  <div className="flex items-center gap-2">
+                    {/* View Mode Toggle */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          {viewMode === 'cards' ? <Grid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => setViewMode('cards')}>
+                          <Grid className="mr-2 h-4 w-4" />
+                          Cards View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setViewMode('table')}>
+                          <List className="mr-2 h-4 w-4" />
+                          Table View
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
 
                 {/* Results Content */}
                 <div className="flex-1 overflow-y-auto">

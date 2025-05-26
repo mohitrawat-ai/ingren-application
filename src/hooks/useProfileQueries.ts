@@ -1,4 +1,4 @@
-// src/hooks/useProfileQueries.ts - Updated to support enabled/disabled queries
+// src/hooks/useProfileQueries.ts - Updated to only search when hasSearched is true
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -34,12 +34,12 @@ export function useFilterOptions() {
   });
 }
 
-// Hook for profile search - UPDATED to accept enabled parameter
-export function useProfileSearch(filters: ProviderProfileFilters, enabled = true) {
+// Hook for profile search - UPDATED to only run when hasSearched is true
+export function useProfileSearch(filters: ProviderProfileFilters, hasSearched: boolean) {
   return useQuery({
     queryKey: profileQueryKeys.search(filters),
     queryFn: () => searchProfileIds(filters),
-    enabled: enabled, // Simplified - just use the enabled parameter directly
+    enabled: hasSearched, // Only enabled when user has explicitly searched
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1, // Retry once on failure
     refetchOnWindowFocus: false,
@@ -77,32 +77,32 @@ export function useFilterValidation(filters: ProviderProfileFilters, enabled = t
   });
 }
 
-// Custom hook that combines search + batch fetch - UPDATED to accept enabled parameter
+// UPDATED: Combined hook that uses appliedFilters and hasSearched
 export function useProfileSearchWithData(
-  filters: ProviderProfileFilters, 
+  appliedFilters: ProviderProfileFilters, // Changed from filters to appliedFilters
   page = 1, 
   pageSize = 10,
-  enabled = true // NEW: Add enabled parameter
+  hasSearched = false // NEW: Only search when user has clicked search
 ) {
   const queryClient = useQueryClient();
   
-  // First get profile IDs - UPDATED: Pass enabled parameter
-  const searchQuery = useProfileSearch(filters, enabled);
+  // First get profile IDs - only when hasSearched is true
+  const searchQuery = useProfileSearch(appliedFilters, hasSearched);
   
   // Calculate pagination
   const startIndex = (page - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const pageProfileIds = searchQuery.data?.profileIds?.slice(startIndex, endIndex) || [];
   
-  // Then get profile data for current page - UPDATED: Only enabled if search was successful and enabled
+  // Then get profile data for current page - only if search was successful
   const profilesQuery = useBatchProfiles(
     pageProfileIds, 
-    enabled && !!searchQuery.data?.profileIds && pageProfileIds.length > 0
+    hasSearched && !!searchQuery.data?.profileIds && pageProfileIds.length > 0
   );
   
-  // Prefetch next page - UPDATED: Only if enabled and we have data
+  // Prefetch next page - only if we have search results
   const nextPageIds = searchQuery.data?.profileIds?.slice(endIndex, endIndex + pageSize) || [];
-  if (enabled && nextPageIds.length > 0 && searchQuery.data?.profileIds) {
+  if (hasSearched && nextPageIds.length > 0 && searchQuery.data?.profileIds) {
     queryClient.prefetchQuery({
       queryKey: [...profileQueryKeys.all, 'batch', nextPageIds],
       queryFn: () => getBatchProfiles(nextPageIds),
@@ -140,6 +140,10 @@ export function useProfileSearchWithData(
     // Refetch functions
     refetchSearch: searchQuery.refetch,
     refetchProfiles: profilesQuery.refetch,
+    
+    // NEW: Indicate if search has been performed
+    hasResults: hasSearched && searchQuery.isSuccess,
+    noResults: hasSearched && searchQuery.isSuccess && (searchQuery.data?.profileIds?.length || 0) === 0,
   };
 }
 

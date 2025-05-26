@@ -36,7 +36,6 @@ interface ProfileFiltersProps {
 interface FilterOptions {
   industries: string[];
   managementLevels: string[];
-  seniorityLevels: string[];
   departments: string[];
   companySizes: string[];
   usStates: string[];
@@ -49,7 +48,6 @@ const defaultFilterOptions: FilterOptions = {
     "Retail", "Education", "Real Estate", "Marketing", "Consulting"
   ],
   managementLevels: ["executive", "manager", "individual_contributor"],
-  seniorityLevels: ["c-level", "vp", "director", "manager", "senior", "mid-level", "junior"],
   departments: [
     "Engineering", "Sales", "Marketing", "Operations", "Finance", 
     "Human Resources", "Product", "Customer Success", "Legal"
@@ -302,24 +300,6 @@ export function ProfileFilters({ filters, onChange, onSearch, loading }: Profile
                     />
                     <Label htmlFor={`mgmt-${level}`} className="text-sm capitalize">
                       {level.replace('_', ' ')}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Seniority Level</Label>
-              <div className="grid grid-cols-1 gap-1 mt-2">
-                {filterOptions.seniorityLevels.map((level) => (
-                  <div key={level} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`seniority-${level}`}
-                      checked={filters.role?.seniorityLevels?.includes(level) || false}
-                      onCheckedChange={() => toggleArrayValue('role', 'seniorityLevels', level)}
-                    />
-                    <Label htmlFor={`seniority-${level}`} className="text-sm capitalize">
-                      {level.replace('-', ' ')}
                     </Label>
                   </div>
                 ))}

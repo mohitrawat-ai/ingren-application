@@ -1,56 +1,74 @@
-// src/stores/profileStore.ts - Updated with reset search state
+// src/stores/profileStore.ts - Updated with user-friendly UX methods
 
 import { create } from 'zustand';
 import { Profile, ProfileFilters } from '@/types/profile';
 
 interface ProfileUIState {
-  // Search filters (UI state)
+  // Search state
   query: string;
-  filters: ProfileFilters;
+  draftQuery: string;
   
-  // Selection state (UI state)
+  // Filter state - separated into draft and applied
+  draftFilters: ProfileFilters;
+  appliedFilters: ProfileFilters;
+  
+  // Search control
+  hasSearched: boolean;
+  
+  // Selection state (unchanged)
   selectedProfiles: Profile[];
   
-  // Current profile view (UI state)
+  // Current profile view (unchanged)
   currentProfileId: string | null;
   
-  // List creation state (UI state)
+  // List creation state (unchanged)
   newListName: string;
   
-  // Pagination state (UI state)
+  // Pagination state (unchanged)
   currentPage: number;
   pageSize: number;
   
-  // UI Actions
-  setQuery: (query: string) => void;
-  updateFilter: (path: string, value: unknown) => void;
-  clearFilters: () => void;
-  resetSearch: () => void; // NEW: Reset search state
+  // Search Actions
+  setDraftQuery: (query: string) => void;
+  updateDraftFilter: (path: string, value: unknown) => void;
+  clearDraftFilters: () => void;
+  applyFilters: () => void;
+  resetSearch: () => void;
+  discardChanges: () => void; // NEW: Discard draft changes
   
-  // Selection actions
+  // Selection actions (unchanged)
   toggleProfileSelection: (profile: Profile) => void;
   bulkSelectProfiles: (profiles: Profile[]) => void;
   bulkDeselectProfiles: (profileIds: string[]) => void;
   clearProfileSelections: () => void;
   
-  // Navigation actions
+  // Navigation actions (unchanged)
   setCurrentProfileId: (id: string | null) => void;
   
-  // List management
+  // List management (unchanged)
   setNewListName: (name: string) => void;
   
-  // Pagination actions
+  // Pagination actions (unchanged)
   setPage: (page: number) => void;
   setPageSize: (size: number) => void;
   
-  // Reset function
+  // USER-FRIENDLY UX METHODS (updated for better UX)
+  hasUnsavedChanges: () => boolean;          // Renamed from hasPendingChanges
+  getCurrentFiltersCount: () => number;       // What user sees as "active filters"
+  getCurrentFilters: () => ProfileFilters;   // What user sees as current filters
+  getCurrentQuery: () => string;             // What user sees as current query
+  
+  // Reset function (unchanged)
   reset: () => void;
 }
 
 export const useProfileStore = create<ProfileUIState>()((set, get) => ({
   // Initial state
   query: '',
-  filters: {},
+  draftQuery: '',
+  draftFilters: {},
+  appliedFilters: {},
+  hasSearched: false,
   selectedProfiles: [],
   currentProfileId: null,
   newListName: '',
@@ -58,12 +76,12 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
   pageSize: 10,
   
   // Search actions
-  setQuery: (query) => {
-    set({ query, currentPage: 1 }); // Reset to first page on new search
+  setDraftQuery: (draftQuery) => {
+    set({ draftQuery });
   },
   
-  updateFilter: (path, value) => {
-    const { filters } = get();
+  updateDraftFilter: (path, value) => {
+    const { draftFilters } = get();
     const pathParts = path.split('.');
     
     // Helper function to set nested property with proper array handling
@@ -79,13 +97,11 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
         
         // Special handling for array toggle operations
         if (typeof val === 'string') {
-          // Check if this should be treated as an array toggle
-          // Based on the filter structure, these fields should be arrays
           const arrayFields = [
-            'states', 'cities', 'countries', 'metroAreas', // location fields
-            'jobTitles', 'departments', 'managementLevels', 'seniorityLevels', // role fields
-            'industries', 'subIndustries', 'techStack', // company fields
-            'skills', 'educationLevel' // advanced fields
+            'states', 'cities', 'countries', 'metroAreas',
+            'jobTitles', 'departments', 'managementLevels', 'seniorityLevels',
+            'industries', 'subIndustries', 'techStack',
+            'skills', 'educationLevel'
           ];
           
           if (arrayFields.includes(key)) {
@@ -94,7 +110,6 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
               ? currentArray.filter(v => v !== val)
               : [...currentArray, val];
             
-            // Return undefined if array is empty to clean up the filter object
             return { 
               ...obj, 
               [key]: updatedArray.length > 0 ? updatedArray : undefined 
@@ -102,7 +117,6 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
           }
         }
         
-        // For non-array values or explicit array assignment
         return { ...obj, [key]: val } as ProfileFilters;
       }
       
@@ -115,7 +129,6 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
         
       const updatedNestedObj = setNestedProperty(nextObj, restParts, val);
       
-      // Clean up empty nested objects
       const hasValues = Object.values(updatedNestedObj).some(v => 
         v !== undefined && v !== null && 
         (!Array.isArray(v) || v.length > 0) &&
@@ -128,46 +141,61 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
       } as ProfileFilters;
     };
     
-    const updatedFilters = setNestedProperty(filters, pathParts, value);
+    const updatedDraftFilters = setNestedProperty(draftFilters, pathParts, value);
     
-    // Clean up the filters object by removing undefined values
-    const cleanFilters = JSON.parse(JSON.stringify(updatedFilters, (key, val) => {
+    const cleanFilters = JSON.parse(JSON.stringify(updatedDraftFilters, (key, val) => {
       if (val === undefined) return undefined;
       if (Array.isArray(val) && val.length === 0) return undefined;
       if (typeof val === 'object' && val !== null && Object.keys(val).length === 0) return undefined;
       return val;
     }));
     
-    set({ filters: cleanFilters, currentPage: 1 }); // Reset to first page on filter change
+    set({ draftFilters: cleanFilters });
   },
   
-  clearFilters: () => {
-    set({ filters: {}, currentPage: 1 });
+  clearDraftFilters: () => {
+    set({ draftFilters: {}, draftQuery: '' });
   },
   
-  // NEW: Reset search state while keeping selections
-  resetSearch: () => {
+  applyFilters: () => {
+    const { draftFilters, draftQuery } = get();
     set({ 
-      query: '',
-      filters: {},
-      currentPage: 1,
-      // Keep selectedProfiles and other UI state intact
+      appliedFilters: { ...draftFilters },
+      query: draftQuery,
+      hasSearched: true,
+      currentPage: 1
     });
   },
   
-  // Selection actions
+  resetSearch: () => {
+    set({ 
+      query: '',
+      draftQuery: '',
+      draftFilters: {},
+      appliedFilters: {},
+      hasSearched: false,
+      currentPage: 1,
+    });
+  },
+  
+  // NEW: Discard changes and revert to applied state
+  discardChanges: () => {
+    const { appliedFilters, query } = get();
+    set({
+      draftFilters: { ...appliedFilters },
+      draftQuery: query,
+    });
+  },
+  
+  // Selection actions (unchanged - keeping for brevity)
   toggleProfileSelection: (profile) => {
     const { selectedProfiles } = get();
     const isSelected = selectedProfiles.some(p => p.id === profile.id);
     
     if (isSelected) {
-      set({ 
-        selectedProfiles: selectedProfiles.filter(p => p.id !== profile.id),
-      });
+      set({ selectedProfiles: selectedProfiles.filter(p => p.id !== profile.id) });
     } else {
-      set({ 
-        selectedProfiles: [...selectedProfiles, profile],
-      });
+      set({ selectedProfiles: [...selectedProfiles, profile] });
     }
   },
   
@@ -175,35 +203,61 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
     const { selectedProfiles } = get();
     const existingIds = new Set(selectedProfiles.map(p => p.id));
     const newProfiles = profiles.filter(p => !existingIds.has(p.id));
-    
-    set({
-      selectedProfiles: [...selectedProfiles, ...newProfiles]
-    });
+    set({ selectedProfiles: [...selectedProfiles, ...newProfiles] });
   },
   
   bulkDeselectProfiles: (profileIds) => {
     const { selectedProfiles } = get();
-    set({
-      selectedProfiles: selectedProfiles.filter(p => !profileIds.includes(p.id))
-    });
+    set({ selectedProfiles: selectedProfiles.filter(p => !profileIds.includes(p.id)) });
   },
   
   clearProfileSelections: () => set({ selectedProfiles: [] }),
   
-  // Navigation actions
+  // Navigation actions (unchanged)
   setCurrentProfileId: (id) => set({ currentProfileId: id }),
   
-  // List management
+  // List management (unchanged)
   setNewListName: (name) => set({ newListName: name }),
   
-  // Pagination actions
+  // Pagination actions (unchanged)
   setPage: (page) => set({ currentPage: page }),
   setPageSize: (size) => set({ pageSize: size, currentPage: 1 }),
   
-  // Reset function
+  // USER-FRIENDLY UX METHODS
+  hasUnsavedChanges: () => {
+    const { draftFilters, appliedFilters, draftQuery, query } = get();
+    return (
+      JSON.stringify(draftFilters) !== JSON.stringify(appliedFilters) ||
+      draftQuery !== query
+    );
+  },
+  
+  getCurrentFiltersCount: () => {
+    const { hasSearched, appliedFilters, draftFilters } = get();
+    // Show applied filters if searched, otherwise show draft (what user is configuring)
+    const filtersToCount = hasSearched ? appliedFilters : draftFilters;
+    return countFilters(filtersToCount);
+  },
+  
+  getCurrentFilters: () => {
+    const { hasSearched, appliedFilters, draftFilters } = get();
+    // Show applied filters if searched, otherwise show draft
+    return hasSearched ? appliedFilters : draftFilters;
+  },
+  
+  getCurrentQuery: () => {
+    const { hasSearched, query, draftQuery } = get();
+    // Show applied query if searched, otherwise show draft
+    return hasSearched ? query : draftQuery;
+  },
+  
+  // Reset function (unchanged)
   reset: () => set({
     query: '',
-    filters: {},
+    draftQuery: '',
+    draftFilters: {},
+    appliedFilters: {},
+    hasSearched: false,
     selectedProfiles: [],
     currentProfileId: null,
     newListName: '',
@@ -211,3 +265,39 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
     pageSize: 10,
   }),
 }));
+
+// Helper function to count active filters (unchanged)
+function countFilters(filters: ProfileFilters): number {
+  let count = 0;
+  
+  // Count location filters
+  if (filters.location?.countries?.length) count += filters.location.countries.length;
+  if (filters.location?.states?.length) count += filters.location.states.length;
+  if (filters.location?.cities?.length) count += filters.location.cities.length;
+  if (filters.location?.includeRemote) count += 1;
+  
+  // Count role filters
+  if (filters.role?.jobTitles?.length) count += filters.role.jobTitles.length;
+  if (filters.role?.departments?.length) count += filters.role.departments.length;
+  if (filters.role?.managementLevels?.length) count += filters.role.managementLevels.length;
+  if (filters.role?.seniorityLevels?.length) count += filters.role.seniorityLevels.length;
+  if (filters.role?.isDecisionMaker) count += 1;
+  if (filters.role?.keywords) count += 1;
+  
+  // Count company filters
+  if (filters.company?.industries?.length) count += filters.company.industries.length;
+  if (filters.company?.employeeCountRange?.min || filters.company?.employeeCountRange?.max) count += 1;
+  if (filters.company?.revenueRange?.min || filters.company?.revenueRange?.max) count += 1;
+  if (filters.company?.foundedAfter || filters.company?.foundedBefore) count += 1;
+  if (filters.company?.isB2B) count += 1;
+  if (filters.company?.hasRecentFunding) count += 1;
+  if (filters.company?.companyKeywords) count += 1;
+  
+  // Count advanced filters
+  if (filters.advanced?.skills?.length) count += filters.advanced.skills.length;
+  if (filters.advanced?.tenureRange?.min || filters.advanced?.tenureRange?.max) count += 1;
+  if (filters.advanced?.recentJobChange) count += 1;
+  if (filters.advanced?.keywords) count += 1;
+  
+  return count;
+}

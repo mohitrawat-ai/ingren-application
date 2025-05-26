@@ -1,4 +1,4 @@
-// src/components/profile/search/ProfileFiltersPanel.tsx - Fixed input handling
+// src/components/profile/search/ProfileFiltersPanel.tsx - Updated with clean UX
 
 "use client";
 
@@ -22,7 +22,6 @@ import { useProfileStore } from "@/stores/profileStore";
 interface FilterOptions {
   industries: string[];
   managementLevels: string[];
-  seniorityLevels: string[];
   departments: string[];
   companySizes: string[];
   usStates: string[];
@@ -34,13 +33,14 @@ interface ProfileFiltersPanelProps {
 }
 
 export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps) {
-  const { 
-    filters, 
-    updateFilter,
-    clearFilters
+  const {
+    draftFilters,              // Still use draft internally
+    updateDraftFilter,         // Still update draft internally
+    clearDraftFilters,         // Still clear draft
+    getCurrentFiltersCount,    // NEW: User-friendly count
   } = useProfileStore();
 
-  // Local state for text inputs to allow free typing
+  // Local state for text inputs
   const [localInputs, setLocalInputs] = useState({
     cities: '',
     jobTitleKeywords: '',
@@ -49,119 +49,84 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
     generalKeywords: ''
   });
 
-  // Sync local inputs with filter state
+  // Sync local inputs with draft filter state
   useEffect(() => {
     setLocalInputs({
-      cities: filters.location?.cities?.join(', ') || '',
-      jobTitleKeywords: filters.role?.keywords || '',
-      companyKeywords: filters.company?.companyKeywords || '',
-      skills: filters.advanced?.skills?.join(', ') || '',
-      generalKeywords: filters.advanced?.keywords || ''
+      cities: draftFilters.location?.cities?.join(', ') || '',
+      jobTitleKeywords: draftFilters.role?.keywords || '',
+      companyKeywords: draftFilters.company?.companyKeywords || '',
+      skills: draftFilters.advanced?.skills?.join(', ') || '',
+      generalKeywords: draftFilters.advanced?.keywords || ''
     });
-  }, [filters]);
+  }, [draftFilters]);
 
   // Handle array filter toggles
   const handleArrayFilter = (path: string, value: string) => {
-    updateFilter(path, value);
+    updateDraftFilter(path, value);
   };
 
-  // Handle text input changes with debouncing
+  // Handle text input changes
   const handleTextInputChange = (field: keyof typeof localInputs, value: string) => {
     setLocalInputs(prev => ({ ...prev, [field]: value }));
   };
 
-  // Handle text input blur (apply filters)
+  // Handle text input blur
   const handleTextInputBlur = (field: keyof typeof localInputs, filterPath: string) => {
     const value = localInputs[field];
-    
+
     if (!value.trim()) {
-      updateFilter(filterPath, undefined);
+      updateDraftFilter(filterPath, undefined);
       return;
     }
 
-    // Handle comma-separated values (cities, skills)
     if (field === 'cities' || field === 'skills') {
       const arrayValue = value.split(',').map(s => s.trim()).filter(s => s);
-      updateFilter(filterPath, arrayValue.length > 0 ? arrayValue : undefined);
+      updateDraftFilter(filterPath, arrayValue.length > 0 ? arrayValue : undefined);
     } else {
-      // Handle single string values
-      updateFilter(filterPath, value.trim());
+      updateDraftFilter(filterPath, value.trim());
     }
   };
 
   const handleBooleanFilter = (path: string, value: boolean) => {
-    updateFilter(path, value);
+    updateDraftFilter(path, value);
   };
 
   const getSelectedCount = (path: string): number => {
     const pathParts = path.split('.');
-    let current: any = filters;
-    
+    let current: unknown = draftFilters;
+
     for (const part of pathParts) {
-      if (current && typeof current === 'object' && part in current) {
-        current = current[part];
+      if (current && typeof current === 'object' && current !== null && part in current) {
+        current = (current as Record<string, unknown>)[part];
       } else {
         current = undefined;
         break;
       }
     }
-    
+
     return Array.isArray(current) ? current.length : 0;
   };
 
   const clearFilter = (path: string) => {
-    updateFilter(path, undefined);
+    updateDraftFilter(path, undefined);
   };
 
-  const getTotalFiltersCount = () => {
-    let count = 0;
-    
-    // Count location filters
-    if (filters.location?.countries?.length) count += filters.location.countries.length;
-    if (filters.location?.states?.length) count += filters.location.states.length;
-    if (filters.location?.cities?.length) count += filters.location.cities.length;
-    if (filters.location?.includeRemote) count += 1;
-    
-    // Count role filters
-    if (filters.role?.jobTitles?.length) count += filters.role.jobTitles.length;
-    if (filters.role?.departments?.length) count += filters.role.departments.length;
-    if (filters.role?.managementLevels?.length) count += filters.role.managementLevels.length;
-    if (filters.role?.seniorityLevels?.length) count += filters.role.seniorityLevels.length;
-    if (filters.role?.isDecisionMaker) count += 1;
-    if (filters.role?.keywords) count += 1;
-    
-    // Count company filters
-    if (filters.company?.industries?.length) count += filters.company.industries.length;
-    if (filters.company?.employeeCountRange?.min || filters.company?.employeeCountRange?.max) count += 1;
-    if (filters.company?.revenueRange?.min || filters.company?.revenueRange?.max) count += 1;
-    if (filters.company?.foundedAfter || filters.company?.foundedBefore) count += 1;
-    if (filters.company?.isB2B) count += 1;
-    if (filters.company?.hasRecentFunding) count += 1;
-    if (filters.company?.companyKeywords) count += 1;
-    
-    // Count advanced filters
-    if (filters.advanced?.skills?.length) count += filters.advanced.skills.length;
-    if (filters.advanced?.tenureRange?.min || filters.advanced?.tenureRange?.max) count += 1;
-    if (filters.advanced?.recentJobChange) count += 1;
-    if (filters.advanced?.keywords) count += 1;
-    
-    return count;
-  };
-
-  const totalFiltersCount = getTotalFiltersCount();
+  const currentFiltersCount = getCurrentFiltersCount();
 
   return (
     <div className="space-y-4">
-      {/* Clear all filters button */}
-      {totalFiltersCount > 0 && (
+      {/* UPDATED: Simple filter status - no confusing draft/applied language */}
+      {currentFiltersCount > 0 && (
         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{totalFiltersCount} filters applied</Badge>
+            <Badge variant="secondary">
+              {currentFiltersCount} {currentFiltersCount === 1 ? 'filter' : 'filters'} active
+            </Badge>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            onClick={clearFilters}
+            onClick={clearDraftFilters}
             className="h-8 px-2"
           >
             <X className="h-3 w-3 mr-1" />
@@ -171,7 +136,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
       )}
 
       <Accordion type="multiple" className="w-full" defaultValue={["location", "role", "company"]}>
-        
+
         {/* Location Filters */}
         <AccordionItem value="location">
           <AccordionTrigger className="py-2">
@@ -203,9 +168,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <div className="space-y-2 max-h-32 overflow-y-auto">
                 {filterOptions?.countries?.map(country => (
                   <div key={country} className="flex items-center space-x-2">
-                    <Checkbox 
+                    <Checkbox
                       id={`country-${country}`}
-                      checked={filters.location?.countries?.includes(country) || false}
+                      checked={draftFilters.location?.countries?.includes(country) || false}
                       onCheckedChange={() => handleArrayFilter('location.countries', country)}
                     />
                     <label
@@ -237,9 +202,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <div className="space-y-2 max-h-32 overflow-y-auto">
                 {filterOptions?.usStates?.map(state => (
                   <div key={state} className="flex items-center space-x-2">
-                    <Checkbox 
+                    <Checkbox
                       id={`state-${state}`}
-                      checked={filters.location?.states?.includes(state) || false}
+                      checked={draftFilters.location?.states?.includes(state) || false}
                       onCheckedChange={() => handleArrayFilter('location.states', state)}
                     />
                     <label
@@ -253,7 +218,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               </div>
             </div>
 
-            {/* Cities - Free text input with local state */}
+            {/* Cities */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Cities</Label>
               <Input
@@ -270,9 +235,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
 
             {/* Include Remote */}
             <div className="flex items-center space-x-2">
-              <Checkbox 
+              <Checkbox
                 id="include-remote"
-                checked={filters.location?.includeRemote || false}
+                checked={draftFilters.location?.includeRemote || false}
                 onCheckedChange={(checked) => handleBooleanFilter('location.includeRemote', !!checked)}
               />
               <label
@@ -328,9 +293,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <div className="space-y-2 max-h-32 overflow-y-auto">
                 {filterOptions?.departments?.map(department => (
                   <div key={department} className="flex items-center space-x-2">
-                    <Checkbox 
+                    <Checkbox
                       id={`dept-${department}`}
-                      checked={filters.role?.departments?.includes(department) || false}
+                      checked={draftFilters.role?.departments?.includes(department) || false}
                       onCheckedChange={() => handleArrayFilter('role.departments', department)}
                     />
                     <label
@@ -362,9 +327,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <div className="space-y-2">
                 {filterOptions?.managementLevels?.map(level => (
                   <div key={level} className="flex items-center space-x-2">
-                    <Checkbox 
+                    <Checkbox
                       id={`mgmt-${level}`}
-                      checked={filters.role?.managementLevels?.includes(level) || false}
+                      checked={draftFilters.role?.managementLevels?.includes(level) || false}
                       onCheckedChange={() => handleArrayFilter('role.managementLevels', level)}
                     />
                     <label
@@ -393,30 +358,13 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   </Button>
                 )}
               </div>
-              <div className="space-y-2">
-                {filterOptions?.seniorityLevels?.map(level => (
-                  <div key={level} className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`seniority-${level}`}
-                      checked={filters.role?.seniorityLevels?.includes(level) || false}
-                      onCheckedChange={() => handleArrayFilter('role.seniorityLevels', level)}
-                    />
-                    <label
-                      htmlFor={`seniority-${level}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize cursor-pointer"
-                    >
-                      {level.replace('-', ' ')}
-                    </label>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Decision Maker */}
             <div className="flex items-center space-x-2">
-              <Checkbox 
+              <Checkbox
                 id="decision-maker"
-                checked={filters.role?.isDecisionMaker || false}
+                checked={draftFilters.role?.isDecisionMaker || false}
                 onCheckedChange={(checked) => handleBooleanFilter('role.isDecisionMaker', !!checked)}
               />
               <label
@@ -460,9 +408,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <div className="space-y-2 max-h-32 overflow-y-auto">
                 {filterOptions?.industries?.map(industry => (
                   <div key={industry} className="flex items-center space-x-2">
-                    <Checkbox 
+                    <Checkbox
                       id={`industry-${industry}`}
-                      checked={filters.company?.industries?.includes(industry) || false}
+                      checked={draftFilters.company?.industries?.includes(industry) || false}
                       onCheckedChange={() => handleArrayFilter('company.industries', industry)}
                     />
                     <label
@@ -479,34 +427,32 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             {/* Company Size */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Employee Count Range</Label>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Min</Label>
-                    <Input
-                      type="number"
-                      placeholder="1"
-                      value={filters.company?.employeeCountRange?.min || ''}
-                      onChange={(e) => {
-                        const value = e.target.value ? parseInt(e.target.value) : undefined;
-                        updateFilter('company.employeeCountRange.min', value);
-                      }}
-                      className="text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Max</Label>
-                    <Input
-                      type="number"
-                      placeholder="10000"
-                      value={filters.company?.employeeCountRange?.max || ''}
-                      onChange={(e) => {
-                        const value = e.target.value ? parseInt(e.target.value) : undefined;
-                        updateFilter('company.employeeCountRange.max', value);
-                      }}
-                      className="text-sm"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Min</Label>
+                  <Input
+                    type="number"
+                    placeholder="1"
+                    value={draftFilters.company?.employeeCountRange?.min || ''}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseInt(e.target.value) : undefined;
+                      updateDraftFilter('company.employeeCountRange.min', value);
+                    }}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Max</Label>
+                  <Input
+                    type="number"
+                    placeholder="10000"
+                    value={draftFilters.company?.employeeCountRange?.max || ''}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseInt(e.target.value) : undefined;
+                      updateDraftFilter('company.employeeCountRange.max', value);
+                    }}
+                    className="text-sm"
+                  />
                 </div>
               </div>
             </div>
@@ -532,10 +478,10 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   <Input
                     type="number"
                     placeholder="2000"
-                    value={filters.company?.foundedAfter || ''}
+                    value={draftFilters.company?.foundedAfter || ''}
                     onChange={(e) => {
                       const value = e.target.value ? parseInt(e.target.value) : undefined;
-                      updateFilter('company.foundedAfter', value);
+                      updateDraftFilter('company.foundedAfter', value);
                     }}
                     className="text-sm"
                   />
@@ -545,10 +491,10 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   <Input
                     type="number"
                     placeholder="2024"
-                    value={filters.company?.foundedBefore || ''}
+                    value={draftFilters.company?.foundedBefore || ''}
                     onChange={(e) => {
                       const value = e.target.value ? parseInt(e.target.value) : undefined;
-                      updateFilter('company.foundedBefore', value);
+                      updateDraftFilter('company.foundedBefore', value);
                     }}
                     className="text-sm"
                   />
@@ -558,9 +504,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
 
             {/* B2B Filter */}
             <div className="flex items-center space-x-2">
-              <Checkbox 
+              <Checkbox
                 id="b2b-only"
-                checked={filters.company?.isB2B || false}
+                checked={draftFilters.company?.isB2B || false}
                 onCheckedChange={(checked) => handleBooleanFilter('company.isB2B', !!checked)}
               />
               <label
@@ -573,9 +519,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
 
             {/* Recent Funding */}
             <div className="flex items-center space-x-2">
-              <Checkbox 
+              <Checkbox
                 id="recent-funding"
-                checked={filters.company?.hasRecentFunding || false}
+                checked={draftFilters.company?.hasRecentFunding || false}
                 onCheckedChange={(checked) => handleBooleanFilter('company.hasRecentFunding', !!checked)}
               />
               <label
@@ -618,10 +564,10 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   <Input
                     type="number"
                     placeholder="6"
-                    value={filters.advanced?.tenureRange?.min || ''}
+                    value={draftFilters.advanced?.tenureRange?.min || ''}
                     onChange={(e) => {
                       const value = e.target.value ? parseInt(e.target.value) : undefined;
-                      updateFilter('advanced.tenureRange.min', value);
+                      updateDraftFilter('advanced.tenureRange.min', value);
                     }}
                     className="text-sm"
                   />
@@ -631,10 +577,10 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                   <Input
                     type="number"
                     placeholder="60"
-                    value={filters.advanced?.tenureRange?.max || ''}
+                    value={draftFilters.advanced?.tenureRange?.max || ''}
                     onChange={(e) => {
                       const value = e.target.value ? parseInt(e.target.value) : undefined;
-                      updateFilter('advanced.tenureRange.max', value);
+                      updateDraftFilter('advanced.tenureRange.max', value);
                     }}
                     className="text-sm"
                   />
@@ -644,9 +590,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
 
             {/* Recent Job Change */}
             <div className="flex items-center space-x-2">
-              <Checkbox 
+              <Checkbox
                 id="recent-job-change"
-                checked={filters.advanced?.recentJobChange || false}
+                checked={draftFilters.advanced?.recentJobChange || false}
                 onCheckedChange={(checked) => handleBooleanFilter('advanced.recentJobChange', !!checked)}
               />
               <label

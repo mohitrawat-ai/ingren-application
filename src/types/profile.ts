@@ -189,7 +189,6 @@ export interface ProfileValidationResponse {
 export interface ProfileFilterOptionsResponse {
   industries: string[];
   managementLevels: string[];
-  seniorityLevels: string[];
   departments: string[];
   companySizes: string[];
   usStates: string[];

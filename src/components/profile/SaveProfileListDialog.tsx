@@ -1,4 +1,5 @@
-// src/components/profile/SaveProfileListDialog.tsx
+// src/components/profile/SaveProfileListDialog.tsx - Updated for new store structure
+
 "use client";
 
 import { useState } from "react";
@@ -34,7 +35,14 @@ export function SaveProfileListDialog({
   onOpenChange
 }: SaveProfileListDialogProps) {
   const router = useRouter();
-  const { selectedProfiles, clearProfileSelections, query, filters } = useProfileStore();
+  
+  // UPDATED: Use applied filters and query for context
+  const { 
+    selectedProfiles, 
+    clearProfileSelections, 
+    query,              // Applied query (what was actually searched)
+    appliedFilters      // Applied filters (what was actually used for search)
+  } = useProfileStore();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -61,8 +69,8 @@ export function SaveProfileListDialog({
         profiles: selectedProfiles,
         totalResults: selectedProfiles.length,
         metadata: {
-          searchFilters: filters,
-          query
+          searchFilters: appliedFilters,  // UPDATED: Use applied filters
+          query                          // UPDATED: Use applied query
         },
       });
 
@@ -93,19 +101,19 @@ export function SaveProfileListDialog({
     const now = new Date();
     const dateStr = now.toLocaleDateString();
     
-    // Try to create a meaningful name based on filters
+    // Try to create a meaningful name based on applied filters
     const filterParts = [];
     
-    if (filters.role?.jobTitles?.length) {
-      filterParts.push(filters.role.jobTitles.slice(0, 2).join(", "));
+    if (appliedFilters.role?.jobTitles?.length) {
+      filterParts.push(appliedFilters.role.jobTitles.slice(0, 2).join(", "));
     }
     
-    if (filters.company?.industries?.length) {
-      filterParts.push(filters.company.industries.slice(0, 2).join(", "));
+    if (appliedFilters.company?.industries?.length) {
+      filterParts.push(appliedFilters.company.industries.slice(0, 2).join(", "));
     }
     
-    if (filters.location?.states?.length) {
-      filterParts.push(filters.location.states.slice(0, 2).join(", "));
+    if (appliedFilters.location?.states?.length) {
+      filterParts.push(appliedFilters.location.states.slice(0, 2).join(", "));
     }
     
     if (query) {
@@ -236,7 +244,7 @@ export function SaveProfileListDialog({
           </div>
 
           {/* Search Context Info */}
-          {(query || Object.keys(filters).length > 0) && (
+          {(query || Object.keys(appliedFilters).length > 0) && (
             <Card className="bg-muted/30">
               <CardContent className="p-3">
                 <Label className="text-xs font-medium text-muted-foreground">Search Context (saved for reference):</Label>
@@ -246,22 +254,22 @@ export function SaveProfileListDialog({
                       <span className="font-medium">Query:</span> {query}
                     </div>
                   )}
-                  {filters.role?.jobTitles?.length && (
+                  {appliedFilters.role?.jobTitles?.length && (
                     <div className="text-xs">
-                      <span className="font-medium">Job Titles:</span> {filters.role.jobTitles.join(", ")}
+                      <span className="font-medium">Job Titles:</span> {appliedFilters.role.jobTitles.join(", ")}
                     </div>
                   )}
-                  {filters.company?.industries?.length && (
+                  {appliedFilters.company?.industries?.length && (
                     <div className="text-xs">
-                      <span className="font-medium">Industries:</span> {filters.company.industries.join(", ")}
+                      <span className="font-medium">Industries:</span> {appliedFilters.company.industries.join(", ")}
                     </div>
                   )}
-                  {filters.location?.states?.length && (
+                  {appliedFilters.location?.states?.length && (
                     <div className="text-xs">
                       <span className="font-medium">Locations:</span> {
-                        Array.isArray(filters.location.states) ?
-                        filters.location.states.join(", ") : 
-                        filters.location.states
+                        Array.isArray(appliedFilters.location.states) ?
+                        appliedFilters.location.states.join(", ") : 
+                        appliedFilters.location.states
                       }
                     </div>
                   )}

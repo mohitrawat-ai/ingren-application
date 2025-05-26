@@ -1,9 +1,10 @@
-// src/app/(dashboard)/profiles/search/page.tsx - Updated to search only on button click
+// src/app/(dashboard)/profiles/search/page.tsx - Fixed setState during render issue
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   ArrowLeft, 
   Filter, 
@@ -50,12 +51,16 @@ import { SaveProfileListDialog } from "@/components/profile/SaveProfileListDialo
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
 
 export default function ProfileSearchPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   // Local state
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [searchInputValue, setSearchInputValue] = useState('');
-  const [hasSearched, setHasSearched] = useState(false); // NEW: Track if user has searched
+  const [hasSearched, setHasSearched] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false); // NEW: Track initialization
 
   // Zustand store state
   const { 
@@ -73,6 +78,44 @@ export default function ProfileSearchPage() {
     clearProfileSelections 
   } = useProfileStore();
 
+  // FIXED: Handle URL parameters in useEffect to avoid setState during render
+  useEffect(() => {
+    if (!isInitialized) {
+      // Get initial state from URL parameters
+      const urlQuery = searchParams.get('q') || '';
+      const urlPage = parseInt(searchParams.get('page') || '1');
+      const urlPageSize = parseInt(searchParams.get('pageSize') || '10');
+      const addToList = searchParams.get('addToList');
+      
+      // Only update if values are different from current state
+      if (urlQuery !== query) {
+        setSearchInputValue(urlQuery);
+        setQuery(urlQuery);
+      }
+      
+      if (urlPage !== currentPage) {
+        setPage(urlPage);
+      }
+      
+      if (urlPageSize !== pageSize) {
+        setPageSize(urlPageSize);
+      }
+      
+      // If there's a search query in URL, mark as searched
+      if (urlQuery) {
+        setHasSearched(true);
+      }
+      
+      // Handle addToList parameter if present
+      if (addToList) {
+        // You can add logic here to show a message about adding to a specific list
+        console.log('Adding to list:', addToList);
+      }
+      
+      setIsInitialized(true);
+    }
+  }, [isInitialized, searchParams, query, currentPage, pageSize, setQuery, setPage, setPageSize]);
+
   // React Query hooks
   const {
     data: filterOptions,
@@ -88,7 +131,7 @@ export default function ProfileSearchPage() {
     pageSize,
   }), [filters, query, currentPage, pageSize]);
 
-  // Main search query - UPDATED: Only enabled when user has searched
+  // Main search query - Only enabled when user has searched
   const {
     profiles,
     totalResults,
@@ -96,19 +139,45 @@ export default function ProfileSearchPage() {
     isLoading,
     error: searchError,
     refetchSearch,
-  } = useProfileSearchWithData(apiFilters, currentPage, pageSize, hasSearched); // Pass hasSearched flag
+  } = useProfileSearchWithData(apiFilters, currentPage, pageSize, hasSearched);
 
-  // Event handlers
+  // FIXED: Moved event handlers inside the component but not in render phase
   const handleSearch = () => {
     setQuery(searchInputValue);
     setPage(1); // Reset to first page on new search
-    setHasSearched(true); // NEW: Mark that user has performed a search
+    setHasSearched(true);
+    
+    // Update URL without causing re-render
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('q', searchInputValue);
+    newUrl.searchParams.set('page', '1');
+    router.replace(newUrl.toString(), { scroll: false });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleSearch();
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    setPage(page);
+    
+    // Update URL
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('page', page.toString());
+    router.replace(newUrl.toString(), { scroll: false });
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1); // Reset to first page
+    
+    // Update URL
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('pageSize', size.toString());
+    newUrl.searchParams.set('page', '1');
+    router.replace(newUrl.toString(), { scroll: false });
   };
 
   const handleSelectAll = () => {
@@ -204,6 +273,18 @@ export default function ProfileSearchPage() {
   };
 
   const hasSearchCriteria = searchInputValue.trim() || getActiveFiltersCount() > 0;
+
+  // Don't render until initialized to prevent hydration issues
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>
@@ -389,7 +470,6 @@ export default function ProfileSearchPage() {
 
           {/* Main Content */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* UPDATED: Show different content based on search state */}
             {!hasSearched ? (
               // Initial state - no search performed yet
               <div className="flex-1 flex items-center justify-center p-8">
@@ -471,8 +551,8 @@ export default function ProfileSearchPage() {
                       totalPages={pagination.pages}
                       totalResults={pagination.total}
                       pageSize={pageSize}
-                      onPageChange={setPage}
-                      onPageSizeChange={setPageSize}
+                      onPageChange={handlePageChange}
+                      onPageSizeChange={handlePageSizeChange}
                     />
                   </div>
                 )}

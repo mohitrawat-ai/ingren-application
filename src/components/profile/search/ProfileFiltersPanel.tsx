@@ -1,7 +1,8 @@
-// src/components/profile/ProfileFiltersPanel.tsx - Updated to accept filterOptions as prop
+// src/components/profile/search/ProfileFiltersPanel.tsx - Fixed input handling
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,12 +40,53 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
     clearFilters
   } = useProfileStore();
 
+  // Local state for text inputs to allow free typing
+  const [localInputs, setLocalInputs] = useState({
+    cities: '',
+    jobTitleKeywords: '',
+    companyKeywords: '',
+    skills: '',
+    generalKeywords: ''
+  });
+
+  // Sync local inputs with filter state
+  useEffect(() => {
+    setLocalInputs({
+      cities: filters.location?.cities?.join(', ') || '',
+      jobTitleKeywords: filters.role?.keywords || '',
+      companyKeywords: filters.company?.companyKeywords || '',
+      skills: filters.advanced?.skills?.join(', ') || '',
+      generalKeywords: filters.advanced?.keywords || ''
+    });
+  }, [filters]);
+
+  // Handle array filter toggles
   const handleArrayFilter = (path: string, value: string) => {
     updateFilter(path, value);
   };
 
-  const handleInputFilter = (path: string, value: string) => {
-    updateFilter(path, value);
+  // Handle text input changes with debouncing
+  const handleTextInputChange = (field: keyof typeof localInputs, value: string) => {
+    setLocalInputs(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Handle text input blur (apply filters)
+  const handleTextInputBlur = (field: keyof typeof localInputs, filterPath: string) => {
+    const value = localInputs[field];
+    
+    if (!value.trim()) {
+      updateFilter(filterPath, undefined);
+      return;
+    }
+
+    // Handle comma-separated values (cities, skills)
+    if (field === 'cities' || field === 'skills') {
+      const arrayValue = value.split(',').map(s => s.trim()).filter(s => s);
+      updateFilter(filterPath, arrayValue.length > 0 ? arrayValue : undefined);
+    } else {
+      // Handle single string values
+      updateFilter(filterPath, value.trim());
+    }
   };
 
   const handleBooleanFilter = (path: string, value: boolean) => {
@@ -53,11 +95,11 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
 
   const getSelectedCount = (path: string): number => {
     const pathParts = path.split('.');
-    let current: unknown = filters;
+    let current: any = filters;
     
     for (const part of pathParts) {
       if (current && typeof current === 'object' && part in current) {
-        current = (current as Record<string, unknown>)[part];
+        current = current[part];
       } else {
         current = undefined;
         break;
@@ -68,7 +110,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
   };
 
   const clearFilter = (path: string) => {
-    updateFilter(path, []);
+    updateFilter(path, undefined);
   };
 
   const getTotalFiltersCount = () => {
@@ -168,7 +210,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                     />
                     <label
                       htmlFor={`country-${country}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
                       {country}
                     </label>
@@ -202,7 +244,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                     />
                     <label
                       htmlFor={`state-${state}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
                       {state}
                     </label>
@@ -211,17 +253,19 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               </div>
             </div>
 
-            {/* Cities - Free text input */}
+            {/* Cities - Free text input with local state */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Cities</Label>
               <Input
                 placeholder="Enter city names (comma separated)"
-                onChange={(e) => {
-                  const cities = e.target.value.split(',').map(c => c.trim()).filter(c => c);
-                  updateFilter('location.cities', cities);
-                }}
+                value={localInputs.cities}
+                onChange={(e) => handleTextInputChange('cities', e.target.value)}
+                onBlur={() => handleTextInputBlur('cities', 'location.cities')}
                 className="text-sm"
               />
+              <p className="text-xs text-muted-foreground">
+                Enter cities separated by commas (e.g., &quot;San Francisco, Austin, Seattle&quot;)
+              </p>
             </div>
 
             {/* Include Remote */}
@@ -233,7 +277,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               />
               <label
                 htmlFor="include-remote"
-                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 Include remote workers
               </label>
@@ -259,8 +303,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <Label className="text-sm font-medium">Job Title Keywords</Label>
               <Input
                 placeholder="e.g., CEO, CTO, VP Engineering"
-                value={filters.role?.keywords || ''}
-                onChange={(e) => handleInputFilter('role.keywords', e.target.value)}
+                value={localInputs.jobTitleKeywords}
+                onChange={(e) => handleTextInputChange('jobTitleKeywords', e.target.value)}
+                onBlur={() => handleTextInputBlur('jobTitleKeywords', 'role.keywords')}
                 className="text-sm"
               />
             </div>
@@ -290,7 +335,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                     />
                     <label
                       htmlFor={`dept-${department}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
                       {department}
                     </label>
@@ -324,7 +369,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                     />
                     <label
                       htmlFor={`mgmt-${level}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize cursor-pointer"
                     >
                       {level.replace('_', ' ')}
                     </label>
@@ -358,7 +403,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                     />
                     <label
                       htmlFor={`seniority-${level}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize cursor-pointer"
                     >
                       {level.replace('-', ' ')}
                     </label>
@@ -376,7 +421,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               />
               <label
                 htmlFor="decision-maker"
-                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 Decision makers only
               </label>
@@ -422,7 +467,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
                     />
                     <label
                       htmlFor={`industry-${industry}`}
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
                       {industry}
                     </label>
@@ -471,8 +516,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <Label className="text-sm font-medium">Company Keywords</Label>
               <Input
                 placeholder="Company name or description keywords"
-                value={filters.company?.companyKeywords || ''}
-                onChange={(e) => handleInputFilter('company.companyKeywords', e.target.value)}
+                value={localInputs.companyKeywords}
+                onChange={(e) => handleTextInputChange('companyKeywords', e.target.value)}
+                onBlur={() => handleTextInputBlur('companyKeywords', 'company.companyKeywords')}
                 className="text-sm"
               />
             </div>
@@ -519,7 +565,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               />
               <label
                 htmlFor="b2b-only"
-                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 B2B companies only
               </label>
@@ -534,7 +580,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               />
               <label
                 htmlFor="recent-funding"
-                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 Recent funding (last 24 months)
               </label>
@@ -553,12 +599,14 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <Label className="text-sm font-medium">Skills</Label>
               <Input
                 placeholder="e.g., Python, Leadership, Machine Learning"
-                onChange={(e) => {
-                  const skills = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                  updateFilter('advanced.skills', skills);
-                }}
+                value={localInputs.skills}
+                onChange={(e) => handleTextInputChange('skills', e.target.value)}
+                onBlur={() => handleTextInputBlur('skills', 'advanced.skills')}
                 className="text-sm"
               />
+              <p className="text-xs text-muted-foreground">
+                Enter skills separated by commas
+              </p>
             </div>
 
             {/* Tenure Range */}
@@ -603,7 +651,7 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               />
               <label
                 htmlFor="recent-job-change"
-                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 Started current job in last 12 months
               </label>
@@ -614,8 +662,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
               <Label className="text-sm font-medium">General Keywords</Label>
               <Input
                 placeholder="Search across all profile fields"
-                value={filters.advanced?.keywords || ''}
-                onChange={(e) => handleInputFilter('advanced.keywords', e.target.value)}
+                value={localInputs.generalKeywords}
+                onChange={(e) => handleTextInputChange('generalKeywords', e.target.value)}
+                onBlur={() => handleTextInputBlur('generalKeywords', 'advanced.keywords')}
                 className="text-sm"
               />
             </div>

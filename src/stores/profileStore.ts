@@ -66,7 +66,7 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
     const { filters } = get();
     const pathParts = path.split('.');
     
-    // Helper function to set nested property
+    // Helper function to set nested property with proper array handling
     const setNestedProperty = (
       obj: ProfileFilters | Record<string, unknown>, 
       parts: string[], 
@@ -75,17 +75,34 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
       if (parts.length === 1) {
         const key = parts[0];
         const objAsRecord = obj as Record<string, unknown>;
+        const currentValue = objAsRecord[key];
         
-        // Handle array toggle logic for filters
-        if (Array.isArray(objAsRecord[key]) && typeof val === 'string') {
-          const currentArray = objAsRecord[key] as string[];
-          const updatedArray = currentArray.includes(val)
-            ? currentArray.filter(v => v !== val)
-            : [...currentArray, val];
+        // Special handling for array toggle operations
+        if (typeof val === 'string') {
+          // Check if this should be treated as an array toggle
+          // Based on the filter structure, these fields should be arrays
+          const arrayFields = [
+            'states', 'cities', 'countries', 'metroAreas', // location fields
+            'jobTitles', 'departments', 'managementLevels', 'seniorityLevels', // role fields
+            'industries', 'subIndustries', 'techStack', // company fields
+            'skills', 'educationLevel' // advanced fields
+          ];
           
-          return { ...obj, [key]: updatedArray } as ProfileFilters;
+          if (arrayFields.includes(key)) {
+            const currentArray = Array.isArray(currentValue) ? currentValue : [];
+            const updatedArray = currentArray.includes(val)
+              ? currentArray.filter(v => v !== val)
+              : [...currentArray, val];
+            
+            // Return undefined if array is empty to clean up the filter object
+            return { 
+              ...obj, 
+              [key]: updatedArray.length > 0 ? updatedArray : undefined 
+            } as ProfileFilters;
+          }
         }
         
+        // For non-array values or explicit array assignment
         return { ...obj, [key]: val } as ProfileFilters;
       }
       
@@ -96,14 +113,32 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
         ? nestedObj as Record<string, unknown>
         : {};
         
+      const updatedNestedObj = setNestedProperty(nextObj, restParts, val);
+      
+      // Clean up empty nested objects
+      const hasValues = Object.values(updatedNestedObj).some(v => 
+        v !== undefined && v !== null && 
+        (!Array.isArray(v) || v.length > 0) &&
+        (typeof v !== 'object' || Object.keys(v).length > 0)
+      );
+      
       return {
         ...obj,
-        [currentKey]: setNestedProperty(nextObj, restParts, val)
+        [currentKey]: hasValues ? updatedNestedObj : undefined
       } as ProfileFilters;
     };
     
     const updatedFilters = setNestedProperty(filters, pathParts, value);
-    set({ filters: updatedFilters, currentPage: 1 }); // Reset to first page on filter change
+    
+    // Clean up the filters object by removing undefined values
+    const cleanFilters = JSON.parse(JSON.stringify(updatedFilters, (key, val) => {
+      if (val === undefined) return undefined;
+      if (Array.isArray(val) && val.length === 0) return undefined;
+      if (typeof val === 'object' && val !== null && Object.keys(val).length === 0) return undefined;
+      return val;
+    }));
+    
+    set({ filters: cleanFilters, currentPage: 1 }); // Reset to first page on filter change
   },
   
   clearFilters: () => {

@@ -1,4 +1,4 @@
-// src/lib/actions/profile.ts
+// src/lib/actions/profile.ts - Simplified version without retries
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -24,7 +24,6 @@ export interface CreateProfileListParams {
   metadata?: Record<string, unknown>;
 }
 
-
 const db = await dbClient();
 
 // Base API URL for profile service
@@ -33,92 +32,31 @@ const API_KEY = process.env.INGREN_API_KEY || '';
 
 // Validate configuration
 if (!API_KEY) {
-  console.error('PROFILE_API_KEY environment variable is not set');
+  console.error('INGREN_API_KEY environment variable is not set');
 }
 
 if (!PROFILE_API_BASE) {
   console.error('PROFILE_API_BASE environment variable is not set');
 }
 
-// Rate limiting and retry configuration
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
-const REQUEST_TIMEOUT = 30000; // 30 seconds
-
-// Track failed requests to prevent spam
-const failedRequests = new Map<string, { count: number; lastAttempt: number }>();
-const FAILURE_COOLDOWN = 60000; // 1 minute cooldown after failures
-
-// Helper function to create AbortController with timeout
-function createTimeoutController(timeoutMs: number): AbortController {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
-  // Clean up timeout when request completes
-  controller.signal.addEventListener('abort', () => {
-    clearTimeout(timeoutId);
-  });
-  
-  return controller;
-}
-
-// Helper function to check if we should skip request due to recent failures
-function shouldSkipRequest(endpoint: string): boolean {
-  const failure = failedRequests.get(endpoint);
-  if (!failure) return false;
-  
-  const timeSinceLastAttempt = Date.now() - failure.lastAttempt;
-  const cooldownRequired = Math.min(FAILURE_COOLDOWN * failure.count, 300000); // Max 5 min cooldown
-  
-  return timeSinceLastAttempt < cooldownRequired;
-}
-
-// Helper function to record request failure
-function recordFailure(endpoint: string): void {
-  const existing = failedRequests.get(endpoint) || { count: 0, lastAttempt: 0 };
-  failedRequests.set(endpoint, {
-    count: existing.count + 1,
-    lastAttempt: Date.now()
-  });
-}
-
-// Helper function to clear failure record on success
-function clearFailure(endpoint: string): void {
-  failedRequests.delete(endpoint);
-}
-
-// Enhanced error class for better error handling
+// Simple error class
 class ProfileAPIError extends Error {
   constructor(
     message: string,
     public endpoint: string,
-    public statusCode?: number,
-    public cause?: Error
+    public statusCode?: number
   ) {
     super(message);
     this.name = 'ProfileAPIError';
   }
 }
 
-// Helper function to make API requests with comprehensive error handling
-async function makeApiRequest<T>(
-  endpoint: string, 
-  options: RequestInit = {},
-  retryCount = 0
-): Promise<T> {
-  // Check if we should skip this request due to recent failures
-  if (shouldSkipRequest(endpoint)) {
-    const failure = failedRequests.get(endpoint);
-    throw new ProfileAPIError(
-      `Request to ${endpoint} skipped due to recent failures (${failure?.count} attempts)`,
-      endpoint
-    );
-  }
-
+// Simplified API request function - no retries, no complex error handling
+async function makeApiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   // Validate environment configuration
   if (!API_KEY) {
     throw new ProfileAPIError(
-      'PROFILE_API_KEY environment variable is not set',
+      'INGREN_API_KEY environment variable is not set',
       endpoint
     );
   }
@@ -130,16 +68,12 @@ async function makeApiRequest<T>(
     );
   }
 
-  // Create timeout controller
-  const controller = createTimeoutController(REQUEST_TIMEOUT);
+  const url = `${PROFILE_API_BASE}${endpoint}`;
+  console.log(`Making API request to: ${url}`);
   
   try {
-    const url = `${PROFILE_API_BASE}${endpoint}`;
-    console.log(`Making API request to: ${url}`);
-    
     const response = await fetch(url, {
       ...options,
-      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': API_KEY,
@@ -147,16 +81,20 @@ async function makeApiRequest<T>(
       },
     });
 
-    // Clear any previous failures on successful connection
-    clearFailure(endpoint);
-
     if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new ProfileAPIError(
-        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
-        endpoint,
-        response.status
-      );
+      let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
+      
+      try {
+        const errorText = await response.text();
+        if (errorText) {
+          errorMessage += ` - ${errorText}`;
+        }
+      } catch (e) {
+        // Ignore JSON parsing errors
+        console.log('Could not parse error response:', e);
+      }
+      
+      throw new ProfileAPIError(errorMessage, endpoint, response.status);
     }
 
     const data = await response.json();
@@ -170,59 +108,32 @@ async function makeApiRequest<T>(
 
     return data.data as T;
   } catch (error) {
-    // Record the failure
-    recordFailure(endpoint);
-    
-    // Handle different types of errors
     if (error instanceof ProfileAPIError) {
       throw error;
     }
     
+    // Handle fetch errors
     if (error instanceof Error) {
-      // Handle specific fetch errors
       if (error.name === 'AbortError') {
-        throw new ProfileAPIError(
-          `Request timeout after ${REQUEST_TIMEOUT}ms`,
-          endpoint,
-          undefined,
-          error
-        );
+        throw new ProfileAPIError('Request was aborted', endpoint);
       }
       
       if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
-        const shouldRetry = retryCount < MAX_RETRIES;
-        
-        if (shouldRetry) {
-          console.warn(`Fetch failed for ${endpoint}, retrying in ${RETRY_DELAY}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-          return makeApiRequest<T>(endpoint, options, retryCount + 1);
-        }
-        
         throw new ProfileAPIError(
-          `Connection failed after ${MAX_RETRIES} retries: ${error.message}`,
-          endpoint,
-          undefined,
-          error
+          `Connection failed: ${error.message}`,
+          endpoint
         );
       }
       
       throw new ProfileAPIError(
         `Request failed: ${error.message}`,
-        endpoint,
-        undefined,
-        error
+        endpoint
       );
     }
     
-    throw new ProfileAPIError(
-      'Unknown error occurred',
-      endpoint,
-      undefined,
-      error as Error
-    );
+    throw new ProfileAPIError('Unknown error occurred', endpoint);
   }
 }
-
 
 // Create a new profile list
 export async function createProfileList(data: CreateProfileListParams) {
@@ -281,81 +192,50 @@ export async function createProfileList(data: CreateProfileListParams) {
   }
 }
 
-// Search for profile IDs
+// Search for profile IDs - simplified
 export async function searchProfileIds(filters: ProviderProfileFilters): Promise<ProfileSearchResponse> {
-  try {
-    return await makeApiRequest<ProfileSearchResponse>('/profiles/search-ids', {
-      method: 'POST',
-      body: JSON.stringify({ filters }),
-    });
-  } catch (error) {
-    console.error('Error searching profile IDs:', error);
-    throw error;
-  }
+  return await makeApiRequest<ProfileSearchResponse>('/profiles/search-ids', {
+    method: 'POST',
+    body: JSON.stringify({ filters }),
+  });
 }
 
-// Get single profile by ID
+// Get single profile by ID - simplified
 export async function getProfile(id: string): Promise<Profile> {
-  try {
-    return await makeApiRequest<Profile>(`/profiles/${id}`);
-  } catch (error) {
-    console.error('Error getting profile:', error);
-    throw error;
-  }
+  return await makeApiRequest<Profile>(`/profiles/${id}`);
 }
 
-// Get multiple profiles by IDs
+// Get multiple profiles by IDs - simplified
 export async function getBatchProfiles(ids: string[]): Promise<ProfileBatchResponse> {
-  try {
-    if (ids.length > 100) {
-      throw new Error('Cannot request more than 100 profiles at once');
-    }
-    
-    return await makeApiRequest<ProfileBatchResponse>('/profiles/batch', {
-      method: 'POST',
-      body: JSON.stringify({ ids }),
-    });
-  } catch (error) {
-    console.error('Error getting batch profiles:', error);
-    throw error;
+  if (ids.length > 100) {
+    throw new Error('Cannot request more than 100 profiles at once');
   }
+  
+  return await makeApiRequest<ProfileBatchResponse>('/profiles/batch', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
 }
 
-// Filter options with safe fallback
+// Filter options - simplified
 export async function getFilterOptions(): Promise<ProfileFilterOptionsResponse> {
-  try {
-    return await makeApiRequest<ProfileFilterOptionsResponse>('/profiles/filter-options');
-  } catch (error) {
-    console.error('Failed to fetch filter options:', error);
-    // Instead of fallback, throw the error - if API is down, the app should handle it gracefully
-    throw new Error('Filter options unavailable. Please check your connection and try again.');
-  }
+  return await makeApiRequest<ProfileFilterOptionsResponse>('/profiles/filter-options');
 }
 
-// Validate filters
+// Validate filters - simplified
 export async function validateFilters(filters: ProfileFilters) {
-  try {
-    return await makeApiRequest('/profiles/validate-filters', {
-      method: 'POST',
-      body: JSON.stringify({ filters }),
-    });
-  } catch (error) {
-    console.error('Error validating filters:', error);
-    throw error;
-  }
+  return await makeApiRequest('/profiles/validate-filters', {
+    method: 'POST',
+    body: JSON.stringify({ filters }),
+  });
 }
 
-// Build query for debugging
+// Build query for debugging - simplified
 export async function buildQuery(filters: ProfileFilters) {
-  try {
-    return await makeApiRequest('/profiles/build-query', {
-      method: 'POST',
-      body: JSON.stringify({ filters }),
-    });
-  } catch (error) {
-    console.error('Error building query:', error);
-    throw error;
-  }
+  return await makeApiRequest('/profiles/build-query', {
+    method: 'POST',
+    body: JSON.stringify({ filters }),
+  });
 }
 
 // Profile List Management Functions

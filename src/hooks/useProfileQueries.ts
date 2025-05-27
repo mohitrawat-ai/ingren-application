@@ -1,4 +1,4 @@
-// src/hooks/useProfileQueries.ts - Updated to only search when hasSearched is true
+// src/hooks/useProfileQueries.ts - Simplified without automatic retries
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PAGINATION_CONFIG } from '@/config/pagination';
@@ -23,100 +23,110 @@ export const profileQueryKeys = {
   validation: (filters: ProviderProfileFilters) => [...profileQueryKeys.all, 'validation', filters] as const,
 };
 
+// Simple filter options hook - no automatic retry
 export function useFilterOptions() {
   return useQuery({
     queryKey: profileQueryKeys.filterOptions(),
     queryFn: getFilterOptions,
-    staleTime: 1000 * 60 * 30, // 30 minutes - filter options rarely change
-    gcTime: 1000 * 60 * 60, // 1 hour
-    retry: 2, // Retry twice before giving up
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    staleTime: 1000 * 60 * 30, // 30 minutes
+    retry: false, // No automatic retry - user clicks retry button
     refetchOnWindowFocus: false,
-    refetchOnMount: true, // Always try to get fresh data on mount
-    throwOnError: false, // Let the component handle the error gracefully
+    throwOnError: false, // Let component handle errors gracefully
   });
 }
 
-// Hook for profile search - UPDATED to only run when hasSearched is true
+// Simple profile search hook - no automatic retry
 export function useProfileSearch(filters: ProviderProfileFilters, hasSearched: boolean) {
   return useQuery({
     queryKey: profileQueryKeys.search(filters),
     queryFn: () => searchProfileIds(filters),
     enabled: hasSearched, // Only enabled when user has explicitly searched
     staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: 1, // Retry once on failure
+    retry: false, // No automatic retry - user clicks retry button
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 }
 
-// Hook for batch profile retrieval
+// Simple batch profiles hook - no automatic retry
 export function useBatchProfiles(profileIds: string[], enabled = true) {
   return useQuery({
     queryKey: [...profileQueryKeys.all, 'batch', profileIds],
     queryFn: () => getBatchProfiles(profileIds),
     enabled: enabled && profileIds.length > 0,
     staleTime: 1000 * 60 * 10, // 10 minutes
+    retry: false, // No automatic retry
+    throwOnError: false,
   });
 }
 
-// Hook for single profile
+// Simple single profile hook - no automatic retry
 export function useProfile(id: string, enabled = true) {
   return useQuery({
     queryKey: profileQueryKeys.profile(id),
     queryFn: () => getProfile(id),
     enabled: enabled && !!id,
     staleTime: 1000 * 60 * 15, // 15 minutes
+    retry: false, // No automatic retry
+    throwOnError: false,
   });
 }
 
-// Hook for filter validation
+// Simple filter validation hook - no automatic retry
 export function useFilterValidation(filters: ProviderProfileFilters, enabled = true) {
   return useQuery({
     queryKey: profileQueryKeys.validation(filters),
     queryFn: () => validateFilters(filters),
     enabled: enabled && Object.keys(filters).length > 0,
     staleTime: 1000 * 60 * 2, // 2 minutes
-    retry: false,
+    retry: false, // No automatic retry
+    throwOnError: false,
   });
 }
 
-// UPDATED: Combined hook that uses appliedFilters and hasSearched
+// Main search hook - only searches once, then paginates through cached IDs
 export function useProfileSearchWithData(
-  appliedFilters: ProviderProfileFilters, // Changed from filters to appliedFilters
+  appliedFilters: ProviderProfileFilters,
   page: number = 1, 
   pageSize: number = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
-  hasSearched = false // NEW: Only search when user has clicked search
+  hasSearched = false
 ) {
-  //const queryClient = useQueryClient();
+  // IMPORTANT: Strip pagination params from filters for search query key
+  // Only search filters should trigger new searches, not page/pageSize changes
+  const searchOnlyFilters = { ...appliedFilters };
+  delete searchOnlyFilters.page;
+  delete searchOnlyFilters.pageSize;
   
-  // First get profile IDs - only when hasSearched is true
-  const searchQuery = useProfileSearch(appliedFilters, hasSearched);
+  // Create stable key based only on search criteria (not pagination)
+  const searchFiltersKey = JSON.stringify(searchOnlyFilters);
   
-  // Calculate pagination
+  // Get all profile IDs ONCE when search filters change - not on page changes
+  const searchQuery = useQuery({
+    queryKey: [...profileQueryKeys.all, 'search-once', searchFiltersKey],
+    queryFn: () => searchProfileIds(searchOnlyFilters), // Use filters without pagination
+    enabled: hasSearched, // Only when user has explicitly searched
+    staleTime: 1000 * 60 * 5, // 5 minutes - keep IDs cached
+    retry: false,
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+  
+  // Calculate pagination from cached IDs (client-side pagination)
+  const allProfileIds = searchQuery.data?.profileIds || [];
   const startIndex = (page - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const pageProfileIds = searchQuery.data?.profileIds?.slice(startIndex, endIndex) || [];
+  const pageProfileIds = allProfileIds.slice(startIndex, endIndex);
   
-  // Then get profile data for current page - only if search was successful
+  // Get profile data for current page only
   const profilesQuery = useBatchProfiles(
     pageProfileIds, 
-    hasSearched && !!searchQuery.data?.profileIds && pageProfileIds.length > 0
+    hasSearched && searchQuery.isSuccess && pageProfileIds.length > 0
   );
   
-  // Prefetch next page - only if we have search results
-  // const nextPageIds = searchQuery.data?.profileIds?.slice(endIndex, endIndex + pageSize) || [];
-  // if (hasSearched && nextPageIds.length > 0 && searchQuery.data?.profileIds) {
-  //   queryClient.prefetchQuery({
-  //     queryKey: [...profileQueryKeys.all, 'batch', nextPageIds],
-  //     queryFn: () => getBatchProfiles(nextPageIds),
-  //     staleTime: 1000 * 60 * 10,
-  //   });
-  // }
-  
   return {
-    // Search results
-    profileIds: searchQuery.data?.profileIds || [],
-    totalResults: searchQuery.data?.profileIds?.length || 0,
+    // Search results (cached from first call)
+    profileIds: allProfileIds,
+    totalResults: allProfileIds.length,
     searchMetadata: searchQuery.data?.searchMetadata,
     
     // Current page data
@@ -136,21 +146,21 @@ export function useProfileSearchWithData(
     pagination: {
       page,
       pageSize,
-      total: searchQuery.data?.profileIds?.length || 0,
-      pages: Math.ceil((searchQuery.data?.profileIds?.length || 0) / pageSize),
+      total: allProfileIds.length,
+      pages: Math.ceil(allProfileIds.length / pageSize),
     },
     
-    // Refetch functions
+    // Manual refetch functions
     refetchSearch: searchQuery.refetch,
     refetchProfiles: profilesQuery.refetch,
     
-    // NEW: Indicate if search has been performed
+    // Search status indicators
     hasResults: hasSearched && searchQuery.isSuccess,
-    noResults: hasSearched && searchQuery.isSuccess && (searchQuery.data?.profileIds?.length || 0) === 0,
+    noResults: hasSearched && searchQuery.isSuccess && allProfileIds.length === 0,
   };
 }
 
-// Mutation hooks for data modification
+// Simple save profile list mutation - no automatic retry
 export function useSaveProfileList() {
   const queryClient = useQueryClient();
   
@@ -160,5 +170,7 @@ export function useSaveProfileList() {
       // Invalidate and refetch profile lists
       queryClient.invalidateQueries({ queryKey: ['profileLists'] });
     },
+    // No retry on mutation - let user try again if needed
+    retry: false,
   });
 }

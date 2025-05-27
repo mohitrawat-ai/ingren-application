@@ -62,7 +62,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteProfileList, getProfileList } from "@/lib/actions/profile";
-import { TargetListContact } from "@/lib/schema";
+import { TargetListProfile } from "@/lib/schema";
 
 interface ProfileListDetailProps {
   params: Promise<{ id: string }>
@@ -113,15 +113,15 @@ export default function ProfileListDetail({ params }: ProfileListDetailProps) {
   }
 
   // Filter profiles based on search text
-  const filteredProfiles = currentList?.contacts?.filter(contact => {
+  const filteredProfiles = currentList?.profiles?.filter(profile => {
     const searchTerm = filterText.toLowerCase();
     return (
-      (contact.name && contact.name.toLowerCase().includes(searchTerm)) ||
-      (contact.title && contact.title.toLowerCase().includes(searchTerm)) ||
-      (contact.companyName && contact.companyName.toLowerCase().includes(searchTerm)) ||
-      (contact.email && contact.email.toLowerCase().includes(searchTerm)) ||
-      (contact.firstName && contact.firstName.toLowerCase().includes(searchTerm)) ||
-      (contact.lastName && contact.lastName.toLowerCase().includes(searchTerm))
+      (profile.firstName && profile.firstName.toLowerCase().includes(searchTerm)) ||
+      (profile.jobTitle && profile.jobTitle.toLowerCase().includes(searchTerm)) ||
+      (profile.companyName && profile.companyName.toLowerCase().includes(searchTerm)) ||
+      (profile.email && profile.email.toLowerCase().includes(searchTerm)) ||
+      (profile.firstName && profile.firstName.toLowerCase().includes(searchTerm)) ||
+      (profile.lastName && profile.lastName.toLowerCase().includes(searchTerm))
     );
   }) || [];
 
@@ -131,12 +131,12 @@ export default function ProfileListDetail({ params }: ProfileListDetailProps) {
   const paginatedProfiles = filteredProfiles.slice(startIndex, endIndex);
   const totalPages = Math.ceil(filteredProfiles.length / itemsPerPage);
 
-  const getInitials = (contact: TargetListContact) => {
-    if (contact.firstName && contact.lastName) {
-      return `${contact.firstName[0]}${contact.lastName[0]}`.toUpperCase();
+  const getInitials = (profile: TargetListProfile) => {
+    if (profile.firstName && profile.lastName) {
+      return `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
     }
-    if (contact.name) {
-      return contact.name
+    if (profile.firstName) {
+      return profile.firstName
         .split(' ')
         .map((part: string) => part[0])
         .join('')
@@ -147,7 +147,7 @@ export default function ProfileListDetail({ params }: ProfileListDetailProps) {
   };
 
   const exportToCSV = () => {
-    if (!currentList?.contacts || currentList.contacts.length === 0) {
+    if (!currentList?.profiles || currentList.profiles.length === 0) {
       toast.error("No profiles to export");
       return;
     }
@@ -155,17 +155,17 @@ export default function ProfileListDetail({ params }: ProfileListDetailProps) {
     const headers = ["First Name", "Last Name", "Title", "Department", "Industry", "Email", "City", "State", "Country"];
     const csvContent = [
       headers.join(","),
-      ...currentList.contacts.map(contact => {
+      ...currentList.profiles.map(profile => {
         return [
-          `"${contact.firstName || ''}"`,
-          `"${contact.lastName || ''}"`,
-          `"${contact.title || ''}"`,
-          `"${contact.department || ''}"`,
-          `"${contact.companyName || ''}"`,
-          `"${contact.email || ''}"`,
-          `"${contact.city || ''}"`,
-          `"${contact.state || ''}"`,
-          `"${contact.country || ''}"`
+          `"${profile.firstName || ''}"`,
+          `"${profile.lastName || ''}"`,
+          `"${profile.jobTitle || ''}"`,
+          `"${profile.department || ''}"`,
+          `"${profile.companyName || ''}"`,
+          `"${profile.email || ''}"`,
+          `"${profile.city || ''}"`,
+          `"${profile.state || ''}"`,
+          `"${profile.country || ''}"`
         ].join(",");
       })
     ].join("\n");
@@ -181,21 +181,20 @@ export default function ProfileListDetail({ params }: ProfileListDetailProps) {
     document.body.removeChild(link);
   };
 
-  const getProfileDisplayData = (contact: TargetListContact) => {
-    const additionalData = contact.additionalData || {};
+  const getProfileDisplayData = (profile: TargetListProfile) => {
     return {
-      name: contact.firstName && contact.lastName 
-        ? `${contact.firstName} ${contact.lastName}`
-        : contact.name,
-      title: contact.title,
-      department: contact.department,
-      company: contact.companyName,
-      industry: (additionalData.company as { industry?: string })?.industry,
-      email: contact.email,
-      location: [contact.city, contact.state, contact.country].filter(Boolean).join(", "),
-      seniorityLevel: additionalData.seniorityLevel,
-      managementLevel: additionalData.managementLevel,
-      isDecisionMaker: additionalData.isDecisionMaker,
+      name: profile.firstName && profile.lastName 
+        ? `${profile.firstName} ${profile.lastName}`
+        : profile.firstName,
+      title: profile.jobTitle,
+      department: profile.department,
+      company: profile.companyName,
+      industry: profile.companyIndustry,
+      email: profile.email,
+      location: [profile.city, profile.state, profile.country].filter(Boolean).join(", "),
+      seniorityLevel: profile.seniorityLevel,
+      managementLevel: profile.managementLevel,
+      isDecisionMaker: profile.isDecisionMaker,
     };
   };
 

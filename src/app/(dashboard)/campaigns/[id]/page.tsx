@@ -72,12 +72,12 @@ interface CampaignDetailPageData {
       sourceTargetListId: number;
       sourceTargetListName: string;
       enrollmentDate: Date;
-      contactCount: number;
+      profileCount: number;
       status: string;
       snapshotData: Record<string, unknown>;
     }>;
     enrollmentStats?: {
-      totalContacts: number;
+      totalProfiles?: number;
       sourceListNames: string[];
       emailStatusBreakdown: Record<string, number>;
       responseStatusBreakdown: Record<string, number>;
@@ -123,7 +123,7 @@ export default function CampaignDetailPage() {
             sourceTargetListId: enrollment.sourceTargetListId,
             sourceTargetListName: enrollment.sourceTargetList.name,
             enrollmentDate: enrollment.enrollmentDate,
-            contactCount: enrollment.enrolledContacts.length,
+            profileCount: enrollment.enrolledProfiles.length,
             status: enrollment.status,
             snapshotData: enrollment.snapshotData as Record<string, unknown>,
           })),

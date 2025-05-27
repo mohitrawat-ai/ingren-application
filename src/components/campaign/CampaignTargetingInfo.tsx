@@ -20,7 +20,7 @@ interface CampaignTargetingInfoProps {
     id: number;
     name: string;
     isNewSystem: boolean;
-    totalContacts: number; // Keep for compatibility
+    totalContacts?: number; // Keep for compatibility
     totalProfiles?: number; // New field
     enrollments?: Array<{
       id: number;
@@ -32,7 +32,6 @@ interface CampaignTargetingInfoProps {
       snapshotData: Record<string, unknown>;
     }>;
     enrollmentStats?: {
-      totalContacts: number; // Keep for compatibility
       totalProfiles?: number; // New field
       sourceListNames: string[];
       emailStatusBreakdown: Record<string, number>;
@@ -46,7 +45,6 @@ interface CampaignTargetingInfoProps {
 export function CampaignTargetingInfo({ campaign }: CampaignTargetingInfoProps) {
   // Use totalProfiles if available, fallback to totalContacts for compatibility
   const profileCount = campaign.totalProfiles || campaign.totalContacts;
-  const enrollmentProfileCount = campaign.enrollmentStats?.totalProfiles || campaign.enrollmentStats?.totalContacts || 0;
 
   if (!campaign.isNewSystem) {
     // Legacy campaign display

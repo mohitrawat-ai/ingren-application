@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { db as dbClient } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { omit } from "lodash";
 import {
   campaigns,
   campaignSettings,
@@ -24,19 +25,6 @@ type TargetingMethod = 'profile_list';
 interface TargetingData {
   method: TargetingMethod;
   profileListId?: number;
-  profiles?: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    title: string;
-    companyName: string;
-    department?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    [key: string]: unknown;
-  }>;
   totalResults?: number;
 }
 
@@ -274,11 +262,11 @@ async function createEnrollmentFromProfileList(tx: Transaction, campaignId: numb
       eq(targetLists.type, 'profile') // Ensure it's a profile list
     ),
     with: {
-      contacts: true, // These are actually profiles stored in the contacts table
+      profiles: true, // These are actually profiles stored in the contacts table
     },
   });
 
-  if (!profileList || profileList.contacts.length === 0) {
+  if (!profileList || profileList.profiles.length === 0) {
     throw new Error("Profile list not found or empty");
   }
 
@@ -294,70 +282,19 @@ async function createEnrollmentFromProfileList(tx: Transaction, campaignId: numb
         listName: profileList.name,
         listDescription: profileList.description,
         enrollmentTime: new Date().toISOString(),
-        profileCount: profileList.contacts.length, // Updated
+        profileCount: profileList.profiles.length, // Updated
       },
     })
     .returning();
 
   // Copy all profiles to enrolled profiles with full fields
   await tx.insert(campaignEnrollmentProfiles).values(
-    profileList.contacts.map((profile) => {
-      // Parse additional data to get full profile info
-      const additionalData = profile.additionalData as any || {};
-
-      return {
-        campaignEnrollmentId: enrollment.id,
-        profileId: profile.apolloProspectId || profile.id?.toString() || '',
-
-        // Basic identity
-        firstName: profile.firstName || additionalData.firstName || '',
-        lastName: profile.lastName || additionalData.lastName || '',
-        fullName: profile.name || additionalData.fullName || `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
-
-        // Professional role
-        jobTitle: profile.title || additionalData.jobTitle || '',
-        department: profile.department || additionalData.department || null,
-        managementLevel: additionalData.managementLevel,
-        seniorityLevel: additionalData.seniorityLevel,
-        isDecisionMaker: additionalData.isDecisionMaker || false,
-
-        // Contact info
-        email: profile.email || additionalData.email || null,
-        phone: additionalData.phone || null,
-        linkedinUrl: additionalData.linkedinUrl || null,
-
-        // Location
-        city: profile.city || additionalData.city || '',
-        state: profile.state || additionalData.state || '',
-        country: profile.country || additionalData.country || '',
-
-        // Company context
-        companyId: additionalData.company?.id || null,
-        companyName: profile.companyName || additionalData.company?.name || '',
-        companyIndustry: additionalData.company?.industry || null,
-        companySize: additionalData.company?.employeeCount || null,
-        companySizeRange: additionalData.company?.employeeCountRange || null,
-        companyRevenue: additionalData.company?.revenue || null,
-        companyDescription: additionalData.company?.description || null,
-        companyDomain: additionalData.company?.domain || null,
-        companyFounded: additionalData.company?.foundedYear || null,
-
-        // Professional context
-        tenureMonths: additionalData.currentTenure?.monthsInRole || null,
-        recentJobChange: additionalData.recentJobChange || false,
-
-        // Enrichment data
-        confidence: additionalData.confidence ? Math.round(additionalData.confidence * 100) : null,
-        dataSource: additionalData.dataSource || 'coresignal',
-        lastEnriched: additionalData.lastUpdated ? new Date(additionalData.lastUpdated) : null,
-
-        // Campaign operational fields
-        emailStatus: 'pending',
-        responseStatus: 'none',
-        lastContacted: null,
-      };
-    })
+    profileList.profiles.map(profile => ({
+      campaignEnrollmentId: enrollment.id,
+      ...omit(profile, ['id', 'targetListId', 'apolloProspectId', 'additionalData', 'createdAt', 'lastSynced'])
+    }))
   );
+
 
   // Mark profile list as used in campaigns
   await tx

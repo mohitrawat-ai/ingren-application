@@ -1,15 +1,14 @@
-// src/lib/tables/campaign-enrollment-profiles.ts - IDENTICAL structure to target_list_contacts
-import { pgTable, text, integer, serial, timestamp, boolean } from "drizzle-orm/pg-core";
-import { campaignEnrollments } from "@/lib/tables/campaign-enrollments";
+// src/lib/tables/target-list-contacts.ts - Updated with unified rich structure
+import { pgTable, text, integer, serial, timestamp, json, boolean } from "drizzle-orm/pg-core";
+import { targetLists } from "@/lib/tables/target-lists";
 
-// UNIFIED: Identical structure to target_list_contacts (minus target_list_id, plus campaign_enrollment_id)
-export const campaignEnrollmentProfiles = pgTable('campaign_enrollment_profiles', {
+// UNIFIED: Rich profile structure (same as campaign_enrollment_profiles)
+export const targetListProfiles = pgTable('target_list_profiles', {
   id: serial('id').primaryKey(),
-  campaignEnrollmentId: integer('campaign_enrollment_id').references(() => campaignEnrollments.id, { onDelete: 'cascade' }).notNull(),
+  targetListId: integer('target_list_id').notNull().references(() => targetLists.id, { onDelete: 'cascade' }),
   
-  // IDENTICAL STRUCTURE to target_list_contacts
   // Core profile identification
-  profileId: text('profile_id').notNull(),
+  profileId: text('profile_id').notNull(), // Original profile ID from provider
   
   // Basic identity fields
   firstName: text('first_name').notNull(),
@@ -19,8 +18,8 @@ export const campaignEnrollmentProfiles = pgTable('campaign_enrollment_profiles'
   // Professional role
   jobTitle: text('job_title').notNull(),
   department: text('department'),
-  managementLevel: text('management_level'),
-  seniorityLevel: text('seniority_level'),
+  managementLevel: text('management_level'), // executive, manager, individual_contributor
+  seniorityLevel: text('seniority_level'), // c-level, vp, director, manager, senior, mid-level, junior
   isDecisionMaker: boolean('is_decision_maker').default(false),
   
   // Contact information
@@ -49,11 +48,15 @@ export const campaignEnrollmentProfiles = pgTable('campaign_enrollment_profiles'
   recentJobChange: boolean('recent_job_change').default(false),
   
   // Enrichment data
-  confidence: integer('confidence'),
+  confidence: integer('confidence'), // 0-100 confidence score
   dataSource: text('data_source').notNull().default('coresignal'),
   lastEnriched: timestamp('last_enriched'),
   
-  // Timestamps (enrollment-specific)
-  enrolledAt: timestamp('enrolled_at').notNull().defaultNow(),
+  // Legacy compatibility fields (keeping for backward compatibility)
+  apolloProspectId: text('apollo_prospect_id'), // For backward compatibility
+  additionalData: json('additional_data').default({}),
+  
+  // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastSynced: timestamp('last_synced'),
 });

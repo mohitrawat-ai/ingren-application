@@ -1,11 +1,10 @@
 import { relations } from "drizzle-orm";
 
 import { targetLists } from "@/lib/tables/target-lists";
-import { targetListCompanies } from "@/lib/tables/company-lists";
-import { targetListContacts } from "@/lib/tables/target-list-contacts";
+import { targetListProfiles } from "@/lib/tables/target-list-profiles";
 import { campaignEnrollments } from "@/lib/tables/campaign-enrollments";
-import { campaignEnrolledContacts } from "@/lib/tables/campaign-enrolled-contacts";
 import { campaignEnrollmentProfiles } from "@/lib/tables/campaign-enrollment-profiles";
+import { campaignProfileOperations } from "@/lib/tables/campaign-profile-operations";
 import { users, campaigns } from "@/lib/schema";
 // NEW RELATIONS
 export const targetListRelations = relations(targetLists, ({ one, many }) => ({
@@ -13,8 +12,7 @@ export const targetListRelations = relations(targetLists, ({ one, many }) => ({
     fields: [targetLists.userId],
     references: [users.id],
   }),
-  companies: many(targetListCompanies),
-  contacts: many(targetListContacts),
+  profiles: many(targetListProfiles),
   enrollments: many(campaignEnrollments),
   sourceList: one(targetLists, {
     fields: [targetLists.sourceListId],
@@ -23,16 +21,9 @@ export const targetListRelations = relations(targetLists, ({ one, many }) => ({
   derivedLists: many(targetLists),
 }));
 
-export const targetListCompanyRelations = relations(targetListCompanies, ({ one }) => ({
+export const targetListContactRelations = relations(targetListProfiles, ({ one }) => ({
   targetList: one(targetLists, {
-    fields: [targetListCompanies.targetListId],
-    references: [targetLists.id],
-  }),
-}));
-
-export const targetListContactRelations = relations(targetListContacts, ({ one }) => ({
-  targetList: one(targetLists, {
-    fields: [targetListContacts.targetListId],
+    fields: [targetListProfiles.targetListId],
     references: [targetLists.id],
   }),
 }));
@@ -46,21 +37,25 @@ export const campaignEnrollmentRelations = relations(campaignEnrollments, ({ one
     fields: [campaignEnrollments.sourceTargetListId],
     references: [targetLists.id],
   }),
-  enrolledContacts: many(campaignEnrolledContacts),
   enrolledProfiles: many(campaignEnrollmentProfiles),
 }));
 
-export const campaignEnrolledContactRelations = relations(campaignEnrolledContacts, ({ one }) => ({
-  enrollment: one(campaignEnrollments, {
-    fields: [campaignEnrolledContacts.campaignEnrollmentId],
-    references: [campaignEnrollments.id],
-  }),
-}));
-
-// NEW: Campaign Enrollment Profiles Relations
+// Campaign Enrollment Profiles Relations
 export const campaignEnrollmentProfileRelations = relations(campaignEnrollmentProfiles, ({ one }) => ({
   enrollment: one(campaignEnrollments, {
     fields: [campaignEnrollmentProfiles.campaignEnrollmentId],
     references: [campaignEnrollments.id],
+  }),
+  operations: one(campaignProfileOperations, {
+    fields: [campaignEnrollmentProfiles.id],
+    references: [campaignProfileOperations.enrollmentProfileId],
+  }),
+}));
+
+// Campaign Profile Operations Relations
+export const campaignProfileOperationsRelations = relations(campaignProfileOperations, ({ one }) => ({
+  enrollmentProfile: one(campaignEnrollmentProfiles, {
+    fields: [campaignProfileOperations.enrollmentProfileId],
+    references: [campaignEnrollmentProfiles.id],
   }),
 }));

@@ -225,7 +225,7 @@ export async function scheduleNextContact(
             .update(campaignProfileOperations)
             .set({
                 nextScheduledContact: nextContactDate,
-                currentSequenceStep: sequenceStep || db.sql`current_sequence_step + 1`,
+                currentSequenceStep: sequenceStep || sql`current_sequence_step + 1`,
                 updatedAt: new Date(),
             })
             .where(eq(campaignProfileOperations.enrollmentProfileId, enrollmentProfileId));

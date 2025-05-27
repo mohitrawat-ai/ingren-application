@@ -8,7 +8,7 @@ export const targetLists = pgTable('target_lists', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  type: text('type').notNull(), // 'company' or 'prospect'
+  type: text('type').notNull(), // 'company' or 'prospect or profile'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   lastSynced: timestamp('last_synced'),

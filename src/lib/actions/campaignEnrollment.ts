@@ -1,4 +1,4 @@
-// src/lib/actions/campaignEnrollment.ts - Updated for profiles
+// src/lib/actions/campaignEnrollment.ts - SIMPLIFIED with unified structure
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -7,18 +7,18 @@ import { auth } from "@/lib/auth";
 import {
     campaignEnrollments,
     campaignEnrollmentProfiles,
-    campaignProfileOperations, // Added
+    campaignProfileOperations,
     targetLists,
     campaigns
 } from "@/lib/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { markProfileListAsUsedInCampaigns } from "@/lib/actions/profileList";
+import { eq, and, desc } from "drizzle-orm";
+import { markProfileListAsUsedInCampaigns } from "./profileList";
 
 const db = await dbClient();
 
 export interface CreateCampaignEnrollmentParams {
     campaignId: number;
-    profileListId: number; // Updated from prospectListId
+    profileListId: number;
 }
 
 export interface CampaignEnrollmentDetails {
@@ -28,7 +28,7 @@ export interface CampaignEnrollmentDetails {
     sourceTargetListName: string;
     enrollmentDate: Date;
     status: string;
-    profileCount: number; // Updated from contactCount
+    profileCount: number;
     snapshotData: Record<string, unknown>;
 }
 
@@ -45,7 +45,7 @@ export async function createCampaignEnrollment(data: CreateCampaignEnrollmentPar
             const campaign = await tx.query.campaigns.findFirst({
                 where: and(
                     eq(campaigns.id, data.campaignId),
-                    eq(campaigns.userId, session.user!.id || "0")
+                    eq(campaigns.userId, session.user!.id)
                 ),
             });
 
@@ -57,11 +57,11 @@ export async function createCampaignEnrollment(data: CreateCampaignEnrollmentPar
             const profileList = await tx.query.targetLists.findFirst({
                 where: and(
                     eq(targetLists.id, data.profileListId),
-                    eq(targetLists.userId, session.user!.id || "0"),
-                    eq(targetLists.type, 'profile') // Updated to profile type
+                    eq(targetLists.userId, session.user!.id),
+                    eq(targetLists.type, 'profile')
                 ),
                 with: {
-                    contacts: true, // This contains the profile data
+                    profiles: true,
                 },
             });
 
@@ -69,7 +69,7 @@ export async function createCampaignEnrollment(data: CreateCampaignEnrollmentPar
                 throw new Error("Profile list not found or unauthorized");
             }
 
-            if (profileList.contacts.length === 0) {
+            if (profileList.profiles.length === 0) {
                 throw new Error("Cannot enroll empty profile list");
             }
 
@@ -85,73 +85,56 @@ export async function createCampaignEnrollment(data: CreateCampaignEnrollmentPar
                         listName: profileList.name,
                         listDescription: profileList.description,
                         enrollmentTime: new Date().toISOString(),
-                        profileCount: profileList.contacts.length, // Updated
+                        profileCount: profileList.profiles.length,
                         metadata: profileList.sharedWith?.[0] ? JSON.parse(profileList.sharedWith[0]) : null,
                     },
                 })
                 .returning();
 
-            // Create enrolled profile records (snapshots) - NO operational data
-            if (profileList.contacts.length > 0) {
+            // SIMPLIFIED: Direct copy since structures are identical
+            if (profileList.profiles.length > 0) {
                 const insertedProfiles = await tx.insert(campaignEnrollmentProfiles).values(
-                    profileList.contacts.map(profile => {
-                        // Parse additional data to get full profile info
-                        const additionalData = profile.additionalData as any || {};
+                    profileList.profiles.map(profile => ({
+                        campaignEnrollmentId: enrollment.id,
                         
-                        return {
-                            campaignEnrollmentId: enrollment.id,
-                            profileId: profile.apolloProspectId || profile.id?.toString() || '', // Use profile ID
-                            
-                            // Basic identity
-                            firstName: profile.firstName || additionalData.firstName || '',
-                            lastName: profile.lastName || additionalData.lastName || '',
-                            fullName: profile.name || additionalData.fullName || `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
-                            
-                            // Professional role
-                            jobTitle: profile.title || additionalData.jobTitle || '',
-                            department: profile.department || additionalData.department || null,
-                            managementLevel: additionalData.managementLevel,
-                            seniorityLevel: additionalData.seniorityLevel,
-                            isDecisionMaker: additionalData.isDecisionMaker || false,
-                            
-                            // Contact info
-                            email: profile.email || additionalData.email || null,
-                            phone: additionalData.phone || null,
-                            linkedinUrl: additionalData.linkedinUrl || null,
-                            
-                            // Location
-                            city: profile.city || additionalData.city || '',
-                            state: profile.state || additionalData.state || '',
-                            country: profile.country || additionalData.country || '',
-                            
-                            // Company context
-                            companyId: additionalData.company?.id || null,
-                            companyName: profile.companyName || additionalData.company?.name || '',
-                            companyIndustry: additionalData.company?.industry || null,
-                            companySize: additionalData.company?.employeeCount || null,
-                            companySizeRange: additionalData.company?.employeeCountRange || null,
-                            companyRevenue: additionalData.company?.revenue || null,
-                            companyDescription: additionalData.company?.description || null,
-                            companyDomain: additionalData.company?.domain || null,
-                            companyFounded: additionalData.company?.foundedYear || null,
-                            
-                            // Professional context
-                            tenureMonths: additionalData.currentTenure?.monthsInRole || null,
-                            recentJobChange: additionalData.recentJobChange || false,
-                            
-                            // Enrichment data
-                            confidence: additionalData.confidence ? Math.round(additionalData.confidence * 100) : null,
-                            dataSource: additionalData.dataSource || 'coresignal',
-                            lastEnriched: additionalData.lastUpdated ? new Date(additionalData.lastUpdated) : null,
-                        };
-                    })
+                        // DIRECT MAPPING - no transformation needed!
+                        profileId: profile.profileId,
+                        firstName: profile.firstName,
+                        lastName: profile.lastName,
+                        fullName: profile.fullName,
+                        jobTitle: profile.jobTitle,
+                        department: profile.department,
+                        managementLevel: profile.managementLevel,
+                        seniorityLevel: profile.seniorityLevel,
+                        isDecisionMaker: profile.isDecisionMaker,
+                        email: profile.email,
+                        phone: profile.phone,
+                        linkedinUrl: profile.linkedinUrl,
+                        city: profile.city,
+                        state: profile.state,
+                        country: profile.country,
+                        companyId: profile.companyId,
+                        companyName: profile.companyName,
+                        companyIndustry: profile.companyIndustry,
+                        companySize: profile.companySize,
+                        companySizeRange: profile.companySizeRange,
+                        companyRevenue: profile.companyRevenue,
+                        companyDescription: profile.companyDescription,
+                        companyDomain: profile.companyDomain,
+                        companyFounded: profile.companyFounded,
+                        tenureMonths: profile.tenureMonths,
+                        recentJobChange: profile.recentJobChange,
+                        confidence: profile.confidence,
+                        dataSource: profile.dataSource,
+                        lastEnriched: profile.lastEnriched,
+                    }))
                 ).returning();
 
-                // Create separate operational records for each profile
+                // Create operational records (trigger will handle this automatically)
+                // But we can also do it manually for clarity:
                 await tx.insert(campaignProfileOperations).values(
                     insertedProfiles.map(profile => ({
                         enrollmentProfileId: profile.id,
-                        // All operational fields use defaults from table definition
                     }))
                 );
             }
@@ -171,7 +154,7 @@ export async function createCampaignEnrollment(data: CreateCampaignEnrollmentPar
     }
 }
 
-// Get all enrollments for a campaign (updated for profiles)
+// Get all enrollments for a campaign
 export async function getCampaignEnrollments(campaignId: number) {
     const session = await auth();
     if (!session?.user?.id) {
@@ -183,7 +166,7 @@ export async function getCampaignEnrollments(campaignId: number) {
         with: {
             enrolledProfiles: {
                 with: {
-                    operations: true, // Include operational data
+                    operations: true,
                 },
             },
             sourceTargetList: true,
@@ -195,13 +178,15 @@ export async function getCampaignEnrollments(campaignId: number) {
         id: enrollment.id,
         campaignId: enrollment.campaignId,
         sourceTargetListId: enrollment.sourceTargetListId,
+        sourceTargetListName: enrollment.sourceTargetList?.name || 'Unknown List',
         enrollmentDate: enrollment.enrollmentDate,
         status: enrollment.status,
+        profileCount: enrollment.enrolledProfiles.length,
         snapshotData: enrollment.snapshotData as Record<string, unknown>,
     }));
 }
 
-// Get enrollment details with profiles (updated)
+// Get enrollment details with profiles
 export async function getCampaignEnrollmentDetails(enrollmentId: number) {
     const session = await auth();
     if (!session?.user?.id) {
@@ -211,7 +196,11 @@ export async function getCampaignEnrollmentDetails(enrollmentId: number) {
     const enrollment = await db.query.campaignEnrollments.findFirst({
         where: eq(campaignEnrollments.id, enrollmentId),
         with: {
-            enrolledProfiles: true, // Updated
+            enrolledProfiles: {
+                with: {
+                    operations: true,
+                },
+            },
             sourceTargetList: true,
             campaign: true,
         },
@@ -229,61 +218,11 @@ export async function getCampaignEnrollmentDetails(enrollmentId: number) {
     return {
         ...enrollment,
         sourceTargetListName: enrollment.sourceTargetList?.name || 'Unknown List',
-        profileCount: enrollment.enrolledProfiles.length, // Updated
+        profileCount: enrollment.enrolledProfiles.length,
     };
 }
 
-// Update profile email status (updated to use operations table)
-export async function updateProfileEmailStatus(
-    enrollmentId: number,
-    profileId: number,
-    status: 'pending' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'failed'
-) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
-
-    try {
-        // Verify ownership through campaign
-        const enrollment = await db.query.campaignEnrollments.findFirst({
-            where: eq(campaignEnrollments.id, enrollmentId),
-            with: {
-                campaign: true,
-            },
-        });
-
-        if (!enrollment || enrollment.campaign.userId !== session.user.id) {
-            throw new Error("Enrollment not found or unauthorized");
-        }
-
-        // Update the operations record, not the profile record
-        await db
-            .update(campaignProfileOperations)
-            .set({
-                emailStatus: status,
-                lastEmailSent: status === 'sent' ? new Date() : undefined,
-                emailsSentCount: status === 'sent' ? sql`emails_sent_count + 1` : undefined,
-                responseStatus: ['replied', 'clicked'].includes(status) ? 'engaged' :
-                    status === 'bounced' ? 'bounced' : 'none',
-                firstResponseDate: ['replied', 'clicked'].includes(status) ? new Date() : undefined,
-                openCount: status === 'opened' ? sql`open_count + 1` : undefined,
-                clickCount: status === 'clicked' ? sql`click_count + 1` : undefined,
-                replyCount: status === 'replied' ? sql`reply_count + 1` : undefined,
-                updatedAt: new Date(),
-            })
-            .where(
-                eq(campaignProfileOperations.enrollmentProfileId, profileId)
-            );
-
-        revalidatePath(`/campaigns/${enrollment.campaignId}`);
-    } catch (error) {
-        console.error("Error updating profile email status:", error);
-        throw error;
-    }
-}
-
-// Get campaign enrollment statistics (updated for profiles)
+// Get campaign enrollment statistics
 export async function getCampaignEnrollmentStats(campaignId: number) {
     const session = await auth();
     if (!session?.user?.id) {
@@ -307,7 +246,7 @@ export async function getCampaignEnrollmentStats(campaignId: number) {
         with: {
             enrolledProfiles: {
                 with: {
-                    operations: true, // Include operational data for stats
+                    operations: true,
                 },
             },
             sourceTargetList: true,
@@ -322,10 +261,9 @@ export async function getCampaignEnrollmentStats(campaignId: number) {
     const statusCounts = enrollments.reduce((acc, enrollment) => {
         enrollment.enrolledProfiles.forEach(profile => {
             const emailStatus = profile.operations?.emailStatus;
-            if (!emailStatus) {
-                return;
+            if (emailStatus) {
+                acc[emailStatus] = (acc[emailStatus] || 0) + 1;
             }
-            acc[emailStatus] = (acc[emailStatus] || 0) + 1;
         });
         return acc;
     }, {} as Record<string, number>);
@@ -333,17 +271,16 @@ export async function getCampaignEnrollmentStats(campaignId: number) {
     const responseCounts = enrollments.reduce((acc, enrollment) => {
         enrollment.enrolledProfiles.forEach(profile => {
             const responseStatus = profile.operations?.responseStatus;
-            if (!responseStatus) {
-                return;
+            if (responseStatus) {
+                acc[responseStatus] = (acc[responseStatus] || 0) + 1;
             }
-            acc[responseStatus] = (acc[responseStatus] || 0) + 1;
         });
         return acc;
     }, {} as Record<string, number>);
 
     return {
         totalEnrollments: enrollments.length,
-        totalProfiles, // Updated
+        totalProfiles,
         sourceListNames: enrollments.map(e => e.sourceTargetList?.name || 'Unknown').filter(Boolean),
         emailStatusBreakdown: statusCounts,
         responseStatusBreakdown: responseCounts,

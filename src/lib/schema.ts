@@ -299,3 +299,6 @@ export type TargetListCompany = typeof tables.targetListCompanies.$inferSelect;
 export type TargetListContact = typeof tables.targetListContacts.$inferSelect;
 export type CampaignEnrollment = typeof tables.campaignEnrollments.$inferSelect;
 export type CampaignEnrolledContact = typeof tables.campaignEnrolledContacts.$inferSelect;
+export type CampaignEnrollmentProfile = typeof tables.campaignEnrollmentProfiles.$inferSelect;
+export type CampaignProfileOperation = typeof tables.campaignProfileOperations.$inferSelect;
+

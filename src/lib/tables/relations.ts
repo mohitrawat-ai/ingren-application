@@ -5,6 +5,7 @@ import { targetListCompanies } from "@/lib/tables/company-lists";
 import { targetListContacts } from "@/lib/tables/target-list-contacts";
 import { campaignEnrollments } from "@/lib/tables/campaign-enrollments";
 import { campaignEnrolledContacts } from "@/lib/tables/campaign-enrolled-contacts";
+import { campaignEnrollmentProfiles } from "@/lib/tables/campaign-enrollment-profiles";
 import { users, campaigns } from "@/lib/schema";
 // NEW RELATIONS
 export const targetListRelations = relations(targetLists, ({ one, many }) => ({
@@ -46,11 +47,20 @@ export const campaignEnrollmentRelations = relations(campaignEnrollments, ({ one
     references: [targetLists.id],
   }),
   enrolledContacts: many(campaignEnrolledContacts),
+  enrolledProfiles: many(campaignEnrollmentProfiles),
 }));
 
 export const campaignEnrolledContactRelations = relations(campaignEnrolledContacts, ({ one }) => ({
   enrollment: one(campaignEnrollments, {
     fields: [campaignEnrolledContacts.campaignEnrollmentId],
+    references: [campaignEnrollments.id],
+  }),
+}));
+
+// NEW: Campaign Enrollment Profiles Relations
+export const campaignEnrollmentProfileRelations = relations(campaignEnrollmentProfiles, ({ one }) => ({
+  enrollment: one(campaignEnrollments, {
+    fields: [campaignEnrollmentProfiles.campaignEnrollmentId],
     references: [campaignEnrollments.id],
   }),
 }));

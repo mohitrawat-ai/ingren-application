@@ -1,4 +1,4 @@
-// src/components/campaign/CampaignTargetingInfo.tsx
+// src/components/campaign/CampaignTargetingInfo.tsx - Updated for profiles
 "use client";
 
 import { Users, AlertTriangle } from "lucide-react";
@@ -20,18 +20,20 @@ interface CampaignTargetingInfoProps {
     id: number;
     name: string;
     isNewSystem: boolean;
-    totalContacts: number;
+    totalContacts: number; // Keep for compatibility
+    totalProfiles?: number; // New field
     enrollments?: Array<{
       id: number;
       sourceTargetListId: number;
       sourceTargetListName: string;
       enrollmentDate: Date;
-      contactCount: number;
+      profileCount: number; // Updated from contactCount
       status: string;
       snapshotData: Record<string, unknown>;
     }>;
     enrollmentStats?: {
-      totalContacts: number;
+      totalContacts: number; // Keep for compatibility
+      totalProfiles?: number; // New field
       sourceListNames: string[];
       emailStatusBreakdown: Record<string, number>;
     };
@@ -42,6 +44,10 @@ interface CampaignTargetingInfoProps {
 }
 
 export function CampaignTargetingInfo({ campaign }: CampaignTargetingInfoProps) {
+  // Use totalProfiles if available, fallback to totalContacts for compatibility
+  const profileCount = campaign.totalProfiles || campaign.totalContacts;
+  const enrollmentProfileCount = campaign.enrollmentStats?.totalProfiles || campaign.enrollmentStats?.totalContacts || 0;
+
   if (!campaign.isNewSystem) {
     // Legacy campaign display
     return (
@@ -84,8 +90,8 @@ export function CampaignTargetingInfo({ campaign }: CampaignTargetingInfoProps) 
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold">{campaign.totalContacts}</p>
-              <p className="text-sm text-muted-foreground">Total Contacts</p>
+              <p className="text-2xl font-bold">{profileCount}</p>
+              <p className="text-sm text-muted-foreground">Total Profiles</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold">{campaign.enrollments?.length || 0}</p>
@@ -130,7 +136,10 @@ export function CampaignTargetingInfo({ campaign }: CampaignTargetingInfoProps) 
               return (
                 <CampaignEnrollmentCard
                   key={enrollment.id}
-                  enrollment={enrollment}
+                  enrollment={{
+                    ...enrollment,
+                    contactCount: enrollment.profileCount, // Map profileCount to contactCount for compatibility
+                  }}
                   emailStats={emailStats}
                 />
               );
@@ -141,4 +150,3 @@ export function CampaignTargetingInfo({ campaign }: CampaignTargetingInfoProps) 
     </div>
   );
 }
-

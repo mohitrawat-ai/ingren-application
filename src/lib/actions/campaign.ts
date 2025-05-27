@@ -9,8 +9,8 @@ import {
   campaignSettings,
   campaignSendingDays,
   campaignEnrollments,
-  campaignEnrolledContacts,
   targetLists,
+  campaignEnrollmentProfiles,
 } from "@/lib/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
@@ -103,7 +103,7 @@ export async function getCampaigns() {
       settings: true,
       enrollments: {
         with: {
-          enrolledContacts: true,
+          enrolledProfiles: true, // Updated from enrolledContacts
           sourceTargetList: true,
         },
       },
@@ -112,8 +112,8 @@ export async function getCampaigns() {
 
   // Transform campaigns to include enrollment stats
   const campaignsWithStats = campaignsList.map(campaign => {
-    const totalContacts = campaign.enrollments.reduce(
-      (sum, enrollment) => sum + enrollment.enrolledContacts.length,
+    const totalProfiles = campaign.enrollments.reduce(
+      (sum, enrollment) => sum + enrollment.enrolledProfiles.length, // Updated
       0
     );
 
@@ -123,8 +123,9 @@ export async function getCampaigns() {
 
     return {
       ...campaign,
-      isNewSystem: true, // Mark as using new enrollment system
-      totalContacts,
+      isNewSystem: true,
+      totalContacts: totalProfiles, // Keep as totalContacts for compatibility
+      totalProfiles, // Add explicit totalProfiles
       enrollmentCount: campaign.enrollments.length,
       sourceListNames,
       statistics: {
@@ -153,7 +154,7 @@ export async function getCampaign(id: number) {
       sendingDays: true,
       enrollments: {
         with: {
-          enrolledContacts: true,
+          enrolledProfiles: true, // Updated from enrolledContacts
           sourceTargetList: true,
         },
       },
@@ -165,8 +166,8 @@ export async function getCampaign(id: number) {
   }
 
   // Add enrollment stats
-  const totalContacts = campaign.enrollments.reduce(
-    (sum, enrollment) => sum + enrollment.enrolledContacts.length,
+  const totalProfiles = campaign.enrollments.reduce(
+    (sum, enrollment) => sum + enrollment.enrolledProfiles.length, // Updated
     0
   );
 
@@ -177,12 +178,14 @@ export async function getCampaign(id: number) {
   return {
     ...campaign,
     isNewSystem: true,
-    totalContacts,
+    totalContacts: totalProfiles, // Keep for compatibility
+    totalProfiles, // Add explicit field
     sourceListNames,
     enrollmentStats: {
-      totalContacts,
+      totalContacts: totalProfiles, // Keep for compatibility
+      totalProfiles,
       sourceListNames,
-      emailStatusBreakdown: {}, // TODO: Calculate from enrolled contacts
+      emailStatusBreakdown: {}, // TODO: Calculate from enrolled profiles
     },
   };
 }
@@ -233,7 +236,6 @@ export async function deleteCampaign(id: number) {
   revalidatePath("/campaigns");
 }
 
-// Save targeting data (NEW IMPLEMENTATION)
 export async function saveTargeting(campaignId: number, data: TargetingData) {
   const session = await auth();
   const userId = session?.user?.id || "-1";
@@ -255,9 +257,8 @@ export async function saveTargeting(campaignId: number, data: TargetingData) {
     await tx.delete(campaignEnrollments).where(eq(campaignEnrollments.campaignId, campaignId));
 
     if (data.method === 'profile_list' && data.profileListId) {
-      // NEW: Create enrollment from existing profile list
+      // Create enrollment from existing profile list
       await createEnrollmentFromProfileList(tx, campaignId, data.profileListId);
-
     }
   });
 
@@ -265,17 +266,20 @@ export async function saveTargeting(campaignId: number, data: TargetingData) {
 }
 
 // Helper: Create enrollment from profile list
-async function createEnrollmentFromProfileList(tx: Transaction, campaignId: number, prospectListId: number) {
-  // Get the prospect list with contacts
-  const prospectList = await tx.query.targetLists.findFirst({
-    where: eq(targetLists.id, prospectListId),
+async function createEnrollmentFromProfileList(tx: Transaction, campaignId: number, profileListId: number) {
+  // Get the profile list with contacts (profiles)
+  const profileList = await tx.query.targetLists.findFirst({
+    where: and(
+      eq(targetLists.id, profileListId),
+      eq(targetLists.type, 'profile') // Ensure it's a profile list
+    ),
     with: {
-      contacts: true,
+      contacts: true, // These are actually profiles stored in the contacts table
     },
   });
 
-  if (!prospectList || prospectList.contacts.length === 0) {
-    throw new Error("Prospect list not found or empty");
+  if (!profileList || profileList.contacts.length === 0) {
+    throw new Error("Profile list not found or empty");
   }
 
   // Create enrollment
@@ -283,78 +287,89 @@ async function createEnrollmentFromProfileList(tx: Transaction, campaignId: numb
     .insert(campaignEnrollments)
     .values({
       campaignId,
-      sourceTargetListId: prospectListId,
+      sourceTargetListId: profileListId,
       enrollmentDate: new Date(),
       status: 'active',
       snapshotData: {
-        listName: prospectList.name,
-        listDescription: prospectList.description,
+        listName: profileList.name,
+        listDescription: profileList.description,
         enrollmentTime: new Date().toISOString(),
-        contactCount: prospectList.contacts.length,
+        profileCount: profileList.contacts.length, // Updated
       },
     })
     .returning();
 
-  // Copy all contacts to enrolled contacts with full fields (no operational fields)
-  await tx.insert(campaignEnrolledContacts).values(
-    prospectList.contacts.map((contact) => {
+  // Copy all profiles to enrolled profiles with full fields
+  await tx.insert(campaignEnrollmentProfiles).values(
+    profileList.contacts.map((profile) => {
+      // Parse additional data to get full profile info
+      const additionalData = profile.additionalData as any || {};
+
       return {
         campaignEnrollmentId: enrollment.id,
-        apolloProspectId: contact.apolloProspectId,
+        profileId: profile.apolloProspectId || profile.id?.toString() || '',
 
-        // Core contact fields
-        email: contact.email,
-        firstName: contact.firstName,
-        lastName: contact.lastName,
-        fullName: contact.name,
-        title: contact.title,
-        department: contact.department,
-        seniority: extractSeniority(contact.title),
+        // Basic identity
+        firstName: profile.firstName || additionalData.firstName || '',
+        lastName: profile.lastName || additionalData.lastName || '',
+        fullName: profile.name || additionalData.fullName || `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
+
+        // Professional role
+        jobTitle: profile.title || additionalData.jobTitle || '',
+        department: profile.department || additionalData.department || null,
+        managementLevel: additionalData.managementLevel,
+        seniorityLevel: additionalData.seniorityLevel,
+        isDecisionMaker: additionalData.isDecisionMaker || false,
+
+        // Contact info
+        email: profile.email || additionalData.email || null,
+        phone: additionalData.phone || null,
+        linkedinUrl: additionalData.linkedinUrl || null,
 
         // Location
-        city: contact.city,
-        state: contact.state,
-        country: contact.country,
+        city: profile.city || additionalData.city || '',
+        state: profile.state || additionalData.state || '',
+        country: profile.country || additionalData.country || '',
 
-        // Timestamps
-        enrolledAt: new Date(),
-      }
-    }
-    ))
+        // Company context
+        companyId: additionalData.company?.id || null,
+        companyName: profile.companyName || additionalData.company?.name || '',
+        companyIndustry: additionalData.company?.industry || null,
+        companySize: additionalData.company?.employeeCount || null,
+        companySizeRange: additionalData.company?.employeeCountRange || null,
+        companyRevenue: additionalData.company?.revenue || null,
+        companyDescription: additionalData.company?.description || null,
+        companyDomain: additionalData.company?.domain || null,
+        companyFounded: additionalData.company?.foundedYear || null,
 
-  // Mark prospect list as used in campaigns
+        // Professional context
+        tenureMonths: additionalData.currentTenure?.monthsInRole || null,
+        recentJobChange: additionalData.recentJobChange || false,
+
+        // Enrichment data
+        confidence: additionalData.confidence ? Math.round(additionalData.confidence * 100) : null,
+        dataSource: additionalData.dataSource || 'coresignal',
+        lastEnriched: additionalData.lastUpdated ? new Date(additionalData.lastUpdated) : null,
+
+        // Campaign operational fields
+        emailStatus: 'pending',
+        responseStatus: 'none',
+        lastContacted: null,
+      };
+    })
+  );
+
+  // Mark profile list as used in campaigns
   await tx
     .update(targetLists)
     .set({
       usedInCampaigns: true,
+      campaignCount: profileList.campaignCount + 1,
       updatedAt: new Date()
     })
-    .where(eq(targetLists.id, prospectListId));
+    .where(eq(targetLists.id, profileListId));
 }
 
-// Helper: Extract seniority from title
-function extractSeniority(title: string | null): string | null {
-  if (!title) return null;
-
-  const titleLower = title.toLowerCase();
-
-  if (titleLower.includes('ceo') || titleLower.includes('cto') || titleLower.includes('cfo') ||
-    titleLower.includes('chief') || titleLower.includes('president')) {
-    return 'C-Level';
-  }
-
-  if (titleLower.includes('vp') || titleLower.includes('vice president') ||
-    titleLower.includes('director')) {
-    return 'Director+';
-  }
-
-  if (titleLower.includes('manager') || titleLower.includes('lead') ||
-    titleLower.includes('senior')) {
-    return 'Manager';
-  }
-
-  return 'Individual Contributor';
-}
 
 // Save settings data (UPDATED for new system)
 export async function saveSettings(campaignId: number, data: SettingsData) {

@@ -1,8 +1,8 @@
-// src/app/api/campaigns/[id]/preview-emails/route.ts
+// src/app/api/campaigns/[id]/preview-emails/route.ts - Updated for profiles
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
 import { db as dbClient} from "@/lib/db";
-import { campaigns, campaignAudiences } from "@/lib/schema";
+import { campaigns, campaignEnrollments } from "@/lib/schema";
 import { eq, InferSelectModel } from "drizzle-orm";
 import { faker } from '@faker-js/faker';
 import * as schema from '@/lib/schema';
@@ -10,7 +10,6 @@ import * as schema from '@/lib/schema';
 type CampaignSelect = InferSelectModel<typeof schema.campaigns>;
 
 const db = await dbClient();
-
 
 export async function GET(
   request: NextRequest,
@@ -42,26 +41,36 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Get audience for this campaign
-    const audience = await db.query.campaignAudiences.findFirst({
-      where: eq(campaignAudiences.campaignId, campaignId),
+    // Get enrollments with profiles for this campaign
+    const enrollments = await db.query.campaignEnrollments.findMany({
+      where: eq(campaignEnrollments.campaignId, campaignId),
       with: {
-        contacts: true,
+        enrolledProfiles: true, // Updated from enrolledContacts
       },
     });
 
     // Generate sample emails
     let previewEmails = [];
     
-    // If we have real contacts from the audience, use them
-    if (audience && audience.contacts && audience.contacts.length >= 2) {
-      const sampleContacts = audience.contacts.slice(0, 2);
-      previewEmails = sampleContacts.map(contact => generateEmailPreview(campaign, contact));
+    // If we have real profiles from the enrollments, use them
+    const allProfiles = enrollments.flatMap(enrollment => enrollment.enrolledProfiles);
+    
+    if (allProfiles && allProfiles.length >= 2) {
+      const sampleProfiles = allProfiles.slice(0, 2);
+      previewEmails = sampleProfiles.map(profile => generateEmailPreview(campaign, {
+        name: profile.fullName,
+        organizationName: profile.companyName,
+        title: profile.jobTitle,
+        city: profile.city,
+        state: profile.state,
+        country: profile.country,
+        email: profile.email,
+      }));
     } else {
-      // Otherwise, generate mock contacts and emails
+      // Otherwise, generate mock profiles and emails
       previewEmails = [
-        generateEmailPreview(campaign, generateMockContact()),
-        generateEmailPreview(campaign, generateMockContact())
+        generateEmailPreview(campaign, generateMockProfile()),
+        generateEmailPreview(campaign, generateMockProfile())
       ];
     }
 
@@ -72,8 +81,8 @@ export async function GET(
   }
 }
 
-// Generate a sample email based on campaign and contact data
-function generateEmailPreview(campaign: CampaignSelect, contact: {
+// Generate a sample email based on campaign and profile data
+function generateEmailPreview(campaign: CampaignSelect, profile: {
   name: string | null;
   organizationName: string | null;
   title: string | null;
@@ -94,17 +103,17 @@ function generateEmailPreview(campaign: CampaignSelect, contact: {
   };
 
   // Generate subject line with personalization
-  const subject = `${contact.name}, would you be interested in improving ${contact.organizationName}'s outreach?`;
+  const subject = `${profile.name}, would you be interested in improving ${profile.organizationName}'s outreach?`;
 
   // Generate email body with personalization
-  const greeting = `Hi ${contact.name?.split(' ')[0]},`;
+  const greeting = `Hi ${profile.name?.split(' ')[0]},`;
   
-  // Use different intros based on contact index for variety
-  const intro = `I noticed that ${contact.organizationName} has been making some impressive moves in the industry recently.`;
+  // Use different intros based on profile index for variety
+  const intro = `I noticed that ${profile.organizationName} has been making some impressive moves in the industry recently.`;
   
-  const valueProposition = `At Ingren, we've been helping companies like yours improve their sales outreach efficiency by 30% on average. Our AI-powered platform specifically addresses the challenges of personalization at scale that many ${contact.title}s face.`;
+  const valueProposition = `At Ingren, we've been helping companies like yours improve their sales outreach efficiency by 30% on average. Our AI-powered platform specifically addresses the challenges of personalization at scale that many ${profile.title}s face.`;
   
-  const socialProof = `Companies similar to ${contact.organizationName} have seen a 2.5x increase in response rates within just 30 days of implementing our solution.`;
+  const socialProof = `Companies similar to ${profile.organizationName} have seen a 2.5x increase in response rates within just 30 days of implementing our solution.`;
   
   const callToAction = `Would you be open to a quick 15-minute call next week to explore if there might be a fit? I'm available Tuesday or Thursday afternoon if that works for your schedule.`;
   
@@ -134,26 +143,26 @@ ${signature}`;
   return {
     id: faker.string.uuid(),
     recipient: {
-      name: contact.name,
-      email: contact.email || `${contact.name?.toLowerCase().replace(/\s+/g, '.')}@${contact.organizationName?.toLowerCase().replace(/\s+/g, '')}.com`,
-      title: contact.title,
-      company: contact.organizationName
+      name: profile.name,
+      email: profile.email || `${profile.name?.toLowerCase().replace(/\s+/g, '.')}@${profile.organizationName?.toLowerCase().replace(/\s+/g, '')}.com`,
+      title: profile.title,
+      company: profile.organizationName
     },
     sender,
     subject,
     body: emailBody,
     scheduledDate: sendDate.toISOString(),
     personalization: {
-      recipientName: contact.name?.split(' ')[0],
-      companyName: contact.organizationName,
-      recipientTitle: contact.title,
-      recipientLocation: [contact.city, contact.state, contact.country].filter(Boolean).join(', ')
+      recipientName: profile.name?.split(' ')[0],
+      companyName: profile.organizationName,
+      recipientTitle: profile.title,
+      recipientLocation: [profile.city, profile.state, profile.country].filter(Boolean).join(', ')
     }
   };
 }
 
-// Generate mock contact data for preview
-function generateMockContact() {
+// Generate mock profile data for preview (updated structure)
+function generateMockProfile() {
   const name = faker.person.fullName();
   const title = faker.helpers.arrayElement([
     "Marketing Director",

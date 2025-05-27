@@ -44,7 +44,7 @@ import {
 import { ProfileFiltersPanel } from "@/components/profile/search/ProfileFiltersPanel";
 import { ProfilePagination } from "@/components/profile/ProfilePagination";
 import { SaveProfileListDialog } from "@/components/profile/SaveProfileListDialog";
-import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ProfileDataTable } from "@/components/profile/search/ProfileDataTable";
 
 export default function ProfileSearchPage() {
@@ -278,7 +278,7 @@ const {
                         <div>
                             <h1 className="text-3xl font-bold">Search Profiles</h1>
                             <p className="text-muted-foreground">
-                                Find prospects using enhanced profile data and company context
+                                Find profiles using enhanced profile data and company context
                             </p>
                         </div>
                     </div>

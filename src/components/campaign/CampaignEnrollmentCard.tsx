@@ -118,7 +118,7 @@ export function CampaignEnrollmentCard({
 
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild className="flex-1">
-            <Link href={`/prospect-lists/${enrollment.sourceTargetListId}`}>
+            <Link href={`/profile-lists/${enrollment.sourceTargetListId}`}>
               <List className="mr-1 h-3 w-3" />
               View List
             </Link>

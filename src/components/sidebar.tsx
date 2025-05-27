@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   MailPlus,
-  Users,
   Settings,
   Mail,
   Link as LinkIcon,
@@ -16,7 +15,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Building,
   UserCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -67,18 +65,6 @@ export function Sidebar() {
       icon: UserCheck,
       href: "/profile-lists",
       color: "text-green-500",
-    },
-    {
-      label: "Company Lists",
-      icon: Building,
-      href: "/company-lists",
-      color: "text-blue-500",
-    },
-    {
-      label: "Prospect Lists",
-      icon: Users,
-      href: "/prospect-lists",
-      color: "text-orange-500",
     },
     {
       label: "Resource Hub",

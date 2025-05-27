@@ -48,7 +48,7 @@ export default function ProfilesPage() {
               Search Profiles
             </CardTitle>
             <CardDescription>
-              Find prospects using advanced filters and enhanced profile data
+              Find profiles using advanced filters and enhanced profile data
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -116,7 +116,7 @@ export default function ProfilesPage() {
         <CardHeader>
           <CardTitle>Why Use Enhanced Profiles?</CardTitle>
           <CardDescription>
-            Advantages over traditional prospect search
+            Advantages over traditional profile search
           </CardDescription>
         </CardHeader>
         <CardContent>

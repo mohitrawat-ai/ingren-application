@@ -26,19 +26,17 @@ import {
   updateCampaignStatus 
 } from "@/lib/actions/campaign";
 import { cn } from "@/lib/utils";
-import { Prospect } from "@/types";
+import { Profile } from "@/types";
 
 // Type definitions for targeting methods
-type TargetingMethod = 'prospect_list' | 'company_list_search' | 'csv_upload';
+type TargetingMethod = 'profile_list';
 
 interface CampaignTargetingData {
   method: TargetingMethod;
-  prospectListId?: number;
-  prospectListName?: string;
-  companyListId?: number;
-  companyListName?: string;
-  prospects?: Array<Prospect>;
-  totalProspects?: number;
+  profileListId?: number;
+  profileListName?: string;
+  profiles?: Array<Profile>;
+  totalProfiles?: number;
 }
 
 interface SettingsData {
@@ -82,7 +80,7 @@ const steps: { key: Step; title: string; description: string }[] = [
   {
     key: 'targeting',
     title: 'Target Audience',
-    description: 'Choose your prospects',
+    description: 'Choose your profiles',
   },
   {
     key: 'settings',
@@ -153,10 +151,9 @@ export default function NewCampaignPage() {
       // Convert targeting data to the format expected by saveTargeting
       const targetingPayload = {
         method: data.method,
-        prospectListId: data.prospectListId,
-        companyListId: data.companyListId,
-        prospects: data.prospects || [],
-        totalResults: data.totalProspects || 0,
+        profileListId: data.profileListId,
+        profiles: data.profiles || [],
+        totalResults: data.totalProfiles || 0,
       };
 
       await saveTargeting(currentCampaignId, targetingPayload);
@@ -349,8 +346,8 @@ export default function NewCampaignPage() {
             {currentStep === 'targeting' && (
               <CampaignTargetingStep
                 data={formData.targeting || {
-                  method: 'prospect_list',
-                  totalProspects: 0,
+                  method: 'profile_list',
+                  totalProfiles: 0,
                 }}
                 onChange={(data) => setFormData(prev => ({ ...prev, targeting: data }))}
                 onNext={() => handleTargetingSubmit(formData.targeting!)}

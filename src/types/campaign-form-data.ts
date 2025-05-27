@@ -1,16 +1,14 @@
 import { CampaignSettingsType, SendingDayType } from "@/lib/schema";
-import { Prospect } from "@/types";
+import { Profile } from "@/types";
 
-export type TargetingMethod = 'prospect_list' | 'company_list_search' | 'csv_upload';
+export type TargetingMethod = 'profile_list';
 
 export type CampaignTargetingData = {
     method: TargetingMethod;
-    prospectListId?: number;
-    prospectListName?: string;
-    companyListId?: number;
-    companyListName?: string;
-    prospects?: Array<Prospect>;
-    totalProspects?: number;
+    profileListId?: number;
+    profileListName?: string;
+    profiles?: Array<Profile>;
+    totalProfiles?: number;
 }
 
 export type SettingsFormData = {

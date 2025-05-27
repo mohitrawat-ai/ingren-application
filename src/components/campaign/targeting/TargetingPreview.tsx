@@ -1,7 +1,7 @@
 // src/components/campaign/targeting/TargetingPreview.tsx
 "use client";
 
-import { Users, Building, Upload, AlertCircle } from "lucide-react";
+import { Users, AlertCircle } from "lucide-react";
 
 import {
   Card,
@@ -23,34 +23,22 @@ interface TargetingPreviewProps {
 export function TargetingPreview({ method, data }: TargetingPreviewProps) {
   const getMethodIcon = () => {
     switch (method) {
-      case 'prospect_list':
+      case 'profile_list':
         return <Users className="h-5 w-5" />;
-      case 'company_list_search':
-        return <Building className="h-5 w-5" />;
-      case 'csv_upload':
-        return <Upload className="h-5 w-5" />;
     }
   };
 
   const getMethodTitle = () => {
     switch (method) {
-      case 'prospect_list':
-        return 'Prospect List Targeting';
-      case 'company_list_search':
-        return 'Company List Search Targeting';
-      case 'csv_upload':
-        return 'CSV Upload Targeting';
+      case 'profile_list':
+        return 'Profile List Targeting';
     }
   };
 
   const getMethodDescription = () => {
     switch (method) {
-      case 'prospect_list':
-        return `Using saved prospect list: ${data.prospectListName}`;
-      case 'company_list_search':
-        return `Prospects found from company list: ${data.companyListName}`;
-      case 'csv_upload':
-        return 'Prospects uploaded from CSV file';
+      case 'profile_list':
+        return `Using saved profile list: ${data.profileListName}`;
     }
   };
 
@@ -66,55 +54,55 @@ export function TargetingPreview({ method, data }: TargetingPreviewProps) {
       <CardContent>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Total Prospects:</span>
+            <span className="text-sm font-medium">Total Profiles:</span>
             <Badge variant="outline" className="text-lg px-3 py-1">
-              {data.totalProspects || 0}
+              {data.totalProfiles || 0}
             </Badge>
           </div>
 
-          {data.totalProspects === 0 && (
+          {data.totalProfiles === 0 && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                No prospects selected. Please choose prospects to continue.
+                No profiles selected. Please choose profiles to continue.
               </AlertDescription>
             </Alert>
           )}
 
-          {data.prospects && data.prospects.length > 0 && (
+          {data.profiles && data.profiles.length > 0 && (
             <div>
-              <h4 className="font-medium mb-2">Sample Prospects:</h4>
+              <h4 className="font-medium mb-2">Sample Profiles:</h4>
               <div className="space-y-2">
-                {data.prospects.slice(0, 3).map((prospect, index) => (
+                {data.profiles.slice(0, 3).map((profile, index) => (
                   <div
-                    key={prospect.id || index}
+                    key={profile.id || index}
                     className="flex items-center justify-between p-2 bg-muted rounded text-sm"
                   >
                     <div>
-                      <span className="font-medium">{prospect.firstName} {prospect.lastName}</span>
+                      <span className="font-medium">{profile.firstName} {profile.lastName}</span>
                       <span className="text-muted-foreground ml-2">
-                        {prospect.title} at {prospect.companyName}
+                        {profile.jobTitle} at {profile.company.name}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {prospect.email}
+                      {profile.email}
                     </span>
                   </div>
                 ))}
-                {data.prospects.length > 3 && (
+                {data.profiles.length > 3 && (
                   <div className="text-sm text-muted-foreground text-center py-2">
-                    ... and {data.prospects.length - 3} more prospects
+                    ... and {data.profiles.length - 3} more profiles
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {method === 'prospect_list' && data.prospectListName && (
+          {method === 'profile_list' && data.profileListName && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Campaign data will be copied from the prospect list at the time of creation. 
+                Campaign data will be copied from the profile list at the time of creation.
                 Future changes to the list won&apos;t affect this campaign.
               </AlertDescription>
             </Alert>

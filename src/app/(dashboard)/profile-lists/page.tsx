@@ -43,7 +43,7 @@ import {
 
 import { CreateProfileListDialog } from "@/components/profile-list/CreateProfileListDialog";
 import { EmptyStateProfileList } from "@/components/profile-list/EmptyStateProfileList";
-import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Import our actions
 import { deleteProfileList, getProfileLists } from "@/lib/actions/profile";

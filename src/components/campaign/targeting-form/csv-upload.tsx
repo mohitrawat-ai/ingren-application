@@ -165,7 +165,7 @@ const processCSV = async () => {
               <h4 className="font-medium mb-2">Supported CSV Fields</h4>
               <p className="text-sm mb-2">Your CSV should include these fields:</p>
               
-              <h5 className="font-medium text-xs mt-3 mb-1">PROSPECT DATA</h5>
+              <h5 className="font-medium text-xs mt-3 mb-1">PROFILE DATA</h5>
               <ul className="text-xs space-y-1 list-disc pl-4">
                 <li>first_name</li>
                 <li>last_name</li>

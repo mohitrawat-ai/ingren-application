@@ -363,7 +363,7 @@ const ClientKnowledgeBase: React.FC = () => {
                   </div>
                   <div>
                     <p className="mb-2">📈 <strong>Credibility boost:</strong> AI shares relevant blog posts and case studies</p>
-                    <p>🔗 <strong>Value-driven conversations:</strong> AI suggests relevant resources to prospects</p>
+                    <p>🔗 <strong>Value-driven conversations:</strong> AI suggests relevant resources to profiles</p>
                   </div>
                 </div>
               </div>

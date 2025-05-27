@@ -58,7 +58,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteProfileList, getProfileList } from "@/lib/actions/profile";

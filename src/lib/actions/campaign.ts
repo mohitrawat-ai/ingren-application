@@ -11,7 +11,6 @@ import {
   campaignEnrollments,
   campaignEnrolledContacts,
   targetLists,
-  targetListContacts
 } from "@/lib/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
@@ -20,13 +19,12 @@ import { parse } from 'date-fns';
 const db = await dbClient();
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 // Simple type definitions for this module
-type TargetingMethod = 'prospect_list' | 'company_list_search' | 'csv_upload';
+type TargetingMethod = 'profile_list';
 
 interface TargetingData {
   method: TargetingMethod;
-  prospectListId?: number;
-  companyListId?: number;
-  prospects?: Array<{
+  profileListId?: number;
+  profiles?: Array<{
     id: string;
     firstName: string;
     lastName: string;
@@ -256,27 +254,18 @@ export async function saveTargeting(campaignId: number, data: TargetingData) {
     // Clear any existing enrollments for this campaign
     await tx.delete(campaignEnrollments).where(eq(campaignEnrollments.campaignId, campaignId));
 
-    if (data.method === 'prospect_list' && data.prospectListId) {
-      // NEW: Create enrollment from existing prospect list
-      await createEnrollmentFromProspectList(tx, campaignId, data.prospectListId);
+    if (data.method === 'profile_list' && data.profileListId) {
+      // NEW: Create enrollment from existing profile list
+      await createEnrollmentFromProfileList(tx, campaignId, data.profileListId);
 
-    } else if (data.method === 'company_list_search' && data.prospects) {
-      // NEW: Create prospect list first, then enroll
-      const prospectListId = await createProspectListFromCompanySearch(tx, userId, data);
-      await createEnrollmentFromProspectList(tx, campaignId, prospectListId);
-
-    } else if (data.method === 'csv_upload' && data.prospects) {
-      // NEW: Create prospect list from CSV, then enroll
-      const prospectListId = await createProspectListFromCSV(tx, userId, data);
-      await createEnrollmentFromProspectList(tx, campaignId, prospectListId);
     }
   });
 
   revalidatePath(`/campaigns/${campaignId}`);
 }
 
-// Helper: Create enrollment from prospect list
-async function createEnrollmentFromProspectList(tx: Transaction, campaignId: number, prospectListId: number) {
+// Helper: Create enrollment from profile list
+async function createEnrollmentFromProfileList(tx: Transaction, campaignId: number, prospectListId: number) {
   // Get the prospect list with contacts
   const prospectList = await tx.query.targetLists.findFirst({
     where: eq(targetLists.id, prospectListId),
@@ -341,87 +330,6 @@ async function createEnrollmentFromProspectList(tx: Transaction, campaignId: num
       updatedAt: new Date()
     })
     .where(eq(targetLists.id, prospectListId));
-}
-
-// Helper: Create prospect list from company search results
-async function createProspectListFromCompanySearch(tx: Transaction, userId: string, data: TargetingData): Promise<number> {
-  // Create new prospect list
-  const [newList] = await tx
-    .insert(targetLists)
-    .values({
-      userId,
-      name: `Company Search Results - ${new Date().toLocaleDateString()}`,
-      description: `Prospects from company list search (${data.prospects?.length} contacts)`,
-      type: 'prospect',
-      sourceListId: data.companyListId || null,
-      createdBy: userId,
-    })
-    .returning();
-
-  // Insert prospects into the list
-  if (data.prospects && data.prospects.length > 0) {
-    await tx.insert(targetListContacts).values(
-      data.prospects.map(prospect => ({
-        targetListId: newList.id,
-        apolloProspectId: prospect.id,
-        name: `${prospect.firstName} ${prospect.lastName}`.trim(),
-        email: prospect.email || null,
-        title: prospect.title || null,
-        companyName: prospect.companyName || null,
-        firstName: prospect.firstName || null,
-        lastName: prospect.lastName || null,
-        department: prospect.department || null,
-        city: prospect.city || null,
-        state: prospect.state || null,
-        country: prospect.country || null,
-        additionalData: {
-          ...prospect,
-        },
-      }))
-    );
-  }
-
-  return newList.id;
-}
-
-// Helper: Create prospect list from CSV upload
-async function createProspectListFromCSV(tx: Transaction, userId: string, data: TargetingData): Promise<number> {
-  // Create new prospect list
-  const [newList] = await tx
-    .insert(targetLists)
-    .values({
-      userId,
-      name: `CSV Upload - ${new Date().toLocaleDateString()}`,
-      description: `Prospects from CSV upload (${data.prospects?.length} contacts)`,
-      type: 'prospect',
-      createdBy: userId,
-    })
-    .returning();
-
-  // Insert prospects into the list
-  if (data.prospects && data.prospects.length > 0) {
-    await tx.insert(targetListContacts).values(
-      data.prospects.map(prospect => ({
-        targetListId: newList.id,
-        apolloProspectId: prospect.id,
-        name: `${prospect.firstName} ${prospect.lastName}`.trim(),
-        email: prospect.email || null,
-        title: prospect.title || null,
-        companyName: prospect.companyName || null,
-        firstName: prospect.firstName || null,
-        lastName: prospect.lastName || null,
-        department: prospect.department || null,
-        city: prospect.city || null,
-        state: prospect.state || null,
-        country: prospect.country || null,
-        additionalData: {
-          ...prospect,
-        },
-      }))
-    );
-  }
-
-  return newList.id;
 }
 
 // Helper: Extract seniority from title

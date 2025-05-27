@@ -5,14 +5,14 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PAGINATION_CONFIG } from '@/config/pagination';
+
 import {
     ArrowLeft,
     Filter,
     Search,
     Save,
     Download,
-    Grid,
-    List,
     RefreshCw,
     AlertTriangle,
     AlertCircle,
@@ -32,12 +32,6 @@ import {
     SheetTitle,
     SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 // Custom hooks
 import { useProfileStore } from "@/stores/profileStore";
@@ -48,10 +42,10 @@ import {
 
 // Components
 import { ProfileFiltersPanel } from "@/components/profile/search/ProfileFiltersPanel";
-import { ProfileList } from "@/components/profile/ProfileList";
 import { ProfilePagination } from "@/components/profile/ProfilePagination";
 import { SaveProfileListDialog } from "@/components/profile/SaveProfileListDialog";
 import { ErrorBoundary } from "@/components/prospect/ErrorBoundary";
+import { ProfileDataTable } from "@/components/profile/search/ProfileDataTable";
 
 export default function ProfileSearchPage() {
     const router = useRouter();
@@ -60,7 +54,6 @@ export default function ProfileSearchPage() {
     // Local state
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-    const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
     const [isInitialized, setIsInitialized] = useState(false);
 
     // Zustand store state - UPDATED to use user-friendly methods
@@ -105,7 +98,7 @@ export default function ProfileSearchPage() {
         if (!isInitialized) {
             const urlQuery = searchParams.get('q') || '';
             const urlPage = parseInt(searchParams.get('page') || '1');
-            const urlPageSize = parseInt(searchParams.get('pageSize') || '10');
+            const urlPageSize = parseInt(searchParams.get('pageSize') || PAGINATION_CONFIG.DEFAULT_PAGE_SIZE.toString());
 
             // FIXED: Remove dependency checks that could cause loops
             setDraftQuery(urlQuery);
@@ -625,37 +618,16 @@ export default function ProfileSearchPage() {
                                             </Button>
                                         )}
                                     </div>
-
-                                    <div className="flex items-center gap-2">
-                                        {/* View Mode Toggle */}
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="outline" size="sm">
-                                                    {viewMode === 'cards' ? <Grid className="h-4 w-4" /> : <List className="h-4 w-4" />}
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent>
-                                                <DropdownMenuItem onClick={() => setViewMode('cards')}>
-                                                    <Grid className="mr-2 h-4 w-4" />
-                                                    Cards View
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setViewMode('table')}>
-                                                    <List className="mr-2 h-4 w-4" />
-                                                    Table View
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
                                 </div>
 
                                 {/* Results Content */}
                                 <div className="flex-1 overflow-y-auto">
                                     <div className="p-4">
-                                        <ProfileList
+                                        <ProfileDataTable
                                             profiles={profiles}
                                             selectedProfiles={selectedProfiles}
                                             onToggleSelection={toggleProfileSelection}
-                                            viewMode={viewMode}
+                                            isLoading={isLoading}
                                         />
                                     </div>
                                 </div>

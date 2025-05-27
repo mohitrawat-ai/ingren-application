@@ -1,6 +1,8 @@
 // src/hooks/useProfileQueries.ts - Updated to only search when hasSearched is true
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { PAGINATION_CONFIG } from '@/config/pagination';
+
 import { 
   getFilterOptions, 
   searchProfileIds, 
@@ -81,11 +83,11 @@ export function useFilterValidation(filters: ProviderProfileFilters, enabled = t
 // UPDATED: Combined hook that uses appliedFilters and hasSearched
 export function useProfileSearchWithData(
   appliedFilters: ProviderProfileFilters, // Changed from filters to appliedFilters
-  page = 1, 
-  pageSize = 10,
+  page: number = 1, 
+  pageSize: number = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
   hasSearched = false // NEW: Only search when user has clicked search
 ) {
-  const queryClient = useQueryClient();
+  //const queryClient = useQueryClient();
   
   // First get profile IDs - only when hasSearched is true
   const searchQuery = useProfileSearch(appliedFilters, hasSearched);
@@ -102,14 +104,14 @@ export function useProfileSearchWithData(
   );
   
   // Prefetch next page - only if we have search results
-  const nextPageIds = searchQuery.data?.profileIds?.slice(endIndex, endIndex + pageSize) || [];
-  if (hasSearched && nextPageIds.length > 0 && searchQuery.data?.profileIds) {
-    queryClient.prefetchQuery({
-      queryKey: [...profileQueryKeys.all, 'batch', nextPageIds],
-      queryFn: () => getBatchProfiles(nextPageIds),
-      staleTime: 1000 * 60 * 10,
-    });
-  }
+  // const nextPageIds = searchQuery.data?.profileIds?.slice(endIndex, endIndex + pageSize) || [];
+  // if (hasSearched && nextPageIds.length > 0 && searchQuery.data?.profileIds) {
+  //   queryClient.prefetchQuery({
+  //     queryKey: [...profileQueryKeys.all, 'batch', nextPageIds],
+  //     queryFn: () => getBatchProfiles(nextPageIds),
+  //     staleTime: 1000 * 60 * 10,
+  //   });
+  // }
   
   return {
     // Search results

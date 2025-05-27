@@ -129,7 +129,7 @@ export function Sidebar() {
       {/* Sidebar */}
       <div
         className={cn(
-          "pb-12 bg-muted/40 border-r transition-all duration-300 h-full",
+          "pb-12 bg-muted/40 border-r transition-all duration-300 h-full min-h-screen",
           isOpen
             ? isMobile
               ? "fixed inset-0 z-40 w-full bg-background/80 backdrop-blur-sm md:w-64 md:relative"
@@ -139,7 +139,7 @@ export function Sidebar() {
             : "w-20"
         )}
       >
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 h-full">
           <div className={cn("px-4 py-2", !isOpen && "flex justify-center")}>
             <h2 className={cn("mb-2 px-2 text-xl font-semibold tracking-tight", !isOpen && "hidden md:hidden")}>
               INGREN

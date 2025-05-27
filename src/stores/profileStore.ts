@@ -2,6 +2,8 @@
 
 import { create } from 'zustand';
 import { Profile, ProfileFilters } from '@/types/profile';
+import { PAGINATION_CONFIG } from '@/config/pagination';
+
 
 interface ProfileUIState {
   // Search state
@@ -73,8 +75,8 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
   currentProfileId: null,
   newListName: '',
   currentPage: 1,
-  pageSize: 10,
-  
+  pageSize: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
+
   // Search actions
   setDraftQuery: (draftQuery) => {
     set({ draftQuery });
@@ -262,7 +264,7 @@ export const useProfileStore = create<ProfileUIState>()((set, get) => ({
     currentProfileId: null,
     newListName: '',
     currentPage: 1,
-    pageSize: 10,
+    pageSize: PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
   }),
 }));
 

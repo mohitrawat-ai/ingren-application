@@ -3,6 +3,7 @@
 
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PAGINATION_CONFIG } from '@/config/pagination';
 import {
   Select,
   SelectContent,
@@ -25,7 +26,7 @@ export function ProfilePagination({
   currentPage,
   totalPages,
   totalResults,
-  pageSize = 10,
+  pageSize = PAGINATION_CONFIG.DEFAULT_PAGE_SIZE,
   onPageChange,
   onPageSizeChange,
   showPageSizeSelector = true,
@@ -89,7 +90,7 @@ export function ProfilePagination({
   const visiblePages = getVisiblePages();
 
   // Page size options
-  const pageSizeOptions = [10, 20, 50, 100];
+  const pageSizeOptions = PAGINATION_CONFIG.PAGE_SIZE_OPTIONS;
 
   const handlePrevious = () => {
     if (currentPage > 1) {

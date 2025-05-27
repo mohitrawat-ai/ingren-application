@@ -82,9 +82,10 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
     }
   };
 
-  const handleBooleanFilter = (path: string, value: boolean) => {
-    updateDraftFilter(path, value);
-  };
+  const handleBooleanFilter = (path: string, checked: boolean) => {
+  // If unchecked, remove the filter entirely by setting to undefined
+  updateDraftFilter(path, checked ? true : undefined);
+};
 
   const getSelectedCount = (path: string): number => {
     const pathParts = path.split('.');

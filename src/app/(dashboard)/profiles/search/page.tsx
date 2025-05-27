@@ -109,34 +109,36 @@ export default function ProfileSearchPage() {
         }
     }, [isInitialized, searchParams, setDraftQuery, setPage, setPageSize]); // Include Zustand actions
 
-    // FIXED: Also ensure the apiFilters memo doesn't cause issues
-    const apiFilters = useMemo(() => {
-        // Don't compute filters if not initialized to prevent premature API calls
-        if (!isInitialized || !hasSearched) {
-            return {
-                page: currentPage,
-                pageSize,
-            };
-        }
-
+const apiFilters = useMemo(() => {
+    // Don't compute filters if not initialized to prevent premature API calls
+    if (!isInitialized || !hasSearched) {
         return {
-            ...appliedFilters,
-            keywords: query,
-            page: currentPage,
-            pageSize,
+            // Don't include page/pageSize here as it would trigger new searches
         };
-    }, [isInitialized, hasSearched, appliedFilters, query, currentPage, pageSize]);
+    }
 
-    // Main search query
-    const {
-        profiles,
-        totalResults,
-        pagination,
-        isLoading,
-        error: searchError,
-        refetchSearch,
-        noResults,
-    } = useProfileSearchWithData(apiFilters, currentPage, pageSize, hasSearched);
+    return {
+        ...appliedFilters,
+        keywords: query,
+        // Remove page and pageSize from here - they're handled separately
+    };
+}, [isInitialized, hasSearched, appliedFilters, query]); // Remove currentPage and pageSize from dependencies
+
+// Update the useProfileSearchWithData call to pass pagination separately:
+const {
+    profiles,
+    totalResults,
+    pagination,
+    isLoading,
+    error: searchError,
+    refetchSearch,
+    noResults,
+} = useProfileSearchWithData(
+    apiFilters, 
+    currentPage,  // Pass pagination separately
+    pageSize,     // Pass pagination separately
+    hasSearched
+);
 
     // Event handlers
     const handleSearch = () => {

@@ -282,7 +282,7 @@ function countFilters(filters: ProfileFilters): number {
   if (filters.role?.departments?.length) count += filters.role.departments.length;
   if (filters.role?.managementLevels?.length) count += filters.role.managementLevels.length;
   if (filters.role?.seniorityLevels?.length) count += filters.role.seniorityLevels.length;
-  if (filters.role?.isDecisionMaker) count += 1;
+  if (filters.role?.isDecisionMaker === true) count += 1;
   if (filters.role?.keywords) count += 1;
   
   // Count company filters
@@ -290,14 +290,14 @@ function countFilters(filters: ProfileFilters): number {
   if (filters.company?.employeeCountRange?.min || filters.company?.employeeCountRange?.max) count += 1;
   if (filters.company?.revenueRange?.min || filters.company?.revenueRange?.max) count += 1;
   if (filters.company?.foundedAfter || filters.company?.foundedBefore) count += 1;
-  if (filters.company?.isB2B) count += 1;
-  if (filters.company?.hasRecentFunding) count += 1;
+  if (filters.company?.isB2B === true) count += 1;
+  if (filters.company?.hasRecentFunding === true) count += 1;
   if (filters.company?.companyKeywords) count += 1;
   
   // Count advanced filters
   if (filters.advanced?.skills?.length) count += filters.advanced.skills.length;
   if (filters.advanced?.tenureRange?.min || filters.advanced?.tenureRange?.max) count += 1;
-  if (filters.advanced?.recentJobChange) count += 1;
+  if (filters.advanced?.recentJobChange === true) count += 1;
   if (filters.advanced?.keywords) count += 1;
   
   return count;

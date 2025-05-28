@@ -162,6 +162,13 @@
       "when": 1748417919383,
       "tag": "0023_confused_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1748443776361,
+      "tag": "0024_young_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

@@ -117,15 +117,13 @@ export const authConfig = {
       if (!user.email) return false;
       
       // Only allow specific email domains
-      if (user.email && user.email.endsWith('@ingren.ai')) {
+      if (user.email?.endsWith('@ingren.ai')) {
         return true;
       }
       
       // Add your domain validation logic here
       // For now, allowing all domains for tenant creation
-      return true;
-      
-      // return '/auth/error?error=domain';
+      return '/auth/error?error=domain';
     }
   },
   pages: {

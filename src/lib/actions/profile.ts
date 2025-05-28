@@ -17,6 +17,7 @@ import {
   ProfileFilterOptionsResponse,
   SaveProfileListParams
 } from "@/types/profile";
+import { requireAuth } from "../utils/auth-guard";
 
 export interface CreateProfileListParams {
   name: string;
@@ -181,10 +182,7 @@ export async function buildQuery(filters: ProfileFilters) {
 
 // Save a new profile list with rich profile data
 export async function saveProfileList(data: SaveProfileListParams) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const { userId } = await requireAuth();
 
   try {
     return await db.transaction(async (tx) => {
@@ -192,11 +190,11 @@ export async function saveProfileList(data: SaveProfileListParams) {
       const [newList] = await tx
         .insert(targetLists)
         .values({
-          userId: session.user!.id,
+          userId,
           name: data.name,
           description: data.description,
           type: 'profile',
-          createdBy: session.user!.id,
+          createdBy: userId,
           sharedWith: data.metadata ? [JSON.stringify(data.metadata)] : [],
         })
         .returning();

@@ -51,7 +51,7 @@ import { getCampaigns, updateCampaignStatus, deleteCampaign } from "@/lib/action
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Campaign } from "@/lib/schema";
+import { Campaign } from "@/lib/schema/types";
 
 export default function CampaignsPage() {
   const queryClient = useQueryClient();

@@ -4,21 +4,20 @@
 import { revalidatePath } from "next/cache";
 import { db as dbClient } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { omit } from "lodash";
+import { takeProfileSnapshot } from "@/lib/utils/profile-snapshot";
 import {
   campaigns,
   campaignSettings,
   campaignSendingDays,
   campaignEnrollments,
   targetLists,
-  campaignEnrollmentProfiles,
 } from "@/lib/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
+import type { DatabaseTransaction } from "@/types/database";
 
 const db = await dbClient();
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 // Simple type definitions for this module
 type TargetingMethod = 'profile_list';
 
@@ -254,7 +253,7 @@ export async function saveTargeting(campaignId: number, data: TargetingData) {
 }
 
 // Helper: Create enrollment from profile list
-async function createEnrollmentFromProfileList(tx: Transaction, campaignId: number, profileListId: number) {
+async function createEnrollmentFromProfileList(tx: DatabaseTransaction, campaignId: number, profileListId: number) {
   // Get the profile list with contacts (profiles)
   const profileList = await tx.query.targetLists.findFirst({
     where: and(
@@ -288,12 +287,14 @@ async function createEnrollmentFromProfileList(tx: Transaction, campaignId: numb
     .returning();
 
   // Copy all profiles to enrolled profiles with full fields
-  await tx.insert(campaignEnrollmentProfiles).values(
-    profileList.profiles.map(profile => ({
-      campaignEnrollmentId: enrollment.id,
-      ...omit(profile, ['id', 'targetListId', 'apolloProspectId', 'additionalData', 'createdAt', 'lastSynced'])
-    }))
-  );
+  // await tx.insert(campaignEnrollmentProfiles).values(
+  //   profileList.profiles.map(profile => ({
+  //     campaignEnrollmentId: enrollment.id,
+  //     ...omit(profile, ['id', 'targetListId', 'apolloProspectId', 'additionalData', 'createdAt', 'lastSynced'])
+  //   }))
+  // );
+
+  await takeProfileSnapshot(tx, enrollment.id, profileListId);
 
 
   // Mark profile list as used in campaigns

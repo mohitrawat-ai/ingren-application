@@ -5,7 +5,7 @@ import path from 'path';
 
 export default {
   // Path to your schema file
-  schema: './src/lib/schema.ts',
+  schema: './src/lib/schema/index.ts',
   
   // Directory where migrations will be stored
   out: './drizzle/migrations',

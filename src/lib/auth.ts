@@ -8,7 +8,7 @@ import { tenants, users } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import type { Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
-import { Tenant } from "@/lib/schema";
+import { Tenant } from "@/lib/schema/types";
 
 const dbClient = await db();
 

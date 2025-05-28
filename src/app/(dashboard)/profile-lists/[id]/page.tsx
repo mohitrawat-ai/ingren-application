@@ -62,7 +62,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteProfileList, getProfileList } from "@/lib/actions/profile";
-import { TargetListProfile } from "@/lib/schema";
+import { TargetListProfile } from "@/lib/schema/types";
 
 interface ProfileListDetailProps {
   params: Promise<{ id: string }>

@@ -1,18 +1,13 @@
 // src/lib/actions/campaignEnrollment.ts - SIMPLIFIED with unified structure
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { db as dbClient } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import {
     campaignEnrollments,
-    campaignEnrollmentProfiles,
-    campaignProfileOperations,
-    targetLists,
     campaigns
 } from "@/lib/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { markProfileListAsUsedInCampaigns } from "./profileList";
 
 const db = await dbClient();
 
@@ -30,128 +25,6 @@ export interface CampaignEnrollmentDetails {
     status: string;
     profileCount: number;
     snapshotData: Record<string, unknown>;
-}
-
-// Create a new campaign enrollment from a profile list
-export async function createCampaignEnrollment(data: CreateCampaignEnrollmentParams) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
-
-    try {
-        return await db.transaction(async (tx) => {
-            // Verify campaign ownership
-            const campaign = await tx.query.campaigns.findFirst({
-                where: and(
-                    eq(campaigns.id, data.campaignId),
-                    eq(campaigns.userId, session.user!.id)
-                ),
-            });
-
-            if (!campaign) {
-                throw new Error("Campaign not found or unauthorized");
-            }
-
-            // Verify profile list ownership and get profiles
-            const profileList = await tx.query.targetLists.findFirst({
-                where: and(
-                    eq(targetLists.id, data.profileListId),
-                    eq(targetLists.userId, session.user!.id),
-                    eq(targetLists.type, 'profile')
-                ),
-                with: {
-                    profiles: true,
-                },
-            });
-
-            if (!profileList) {
-                throw new Error("Profile list not found or unauthorized");
-            }
-
-            if (profileList.profiles.length === 0) {
-                throw new Error("Cannot enroll empty profile list");
-            }
-
-            // Create the enrollment record
-            const [enrollment] = await tx
-                .insert(campaignEnrollments)
-                .values({
-                    campaignId: data.campaignId,
-                    sourceTargetListId: data.profileListId,
-                    enrollmentDate: new Date(),
-                    status: 'active',
-                    snapshotData: {
-                        listName: profileList.name,
-                        listDescription: profileList.description,
-                        enrollmentTime: new Date().toISOString(),
-                        profileCount: profileList.profiles.length,
-                        metadata: profileList.sharedWith?.[0] ? JSON.parse(profileList.sharedWith[0]) : null,
-                    },
-                })
-                .returning();
-
-            // SIMPLIFIED: Direct copy since structures are identical
-            if (profileList.profiles.length > 0) {
-                const insertedProfiles = await tx.insert(campaignEnrollmentProfiles).values(
-                    profileList.profiles.map(profile => ({
-                        campaignEnrollmentId: enrollment.id,
-                        
-                        // DIRECT MAPPING - no transformation needed!
-                        profileId: profile.profileId,
-                        firstName: profile.firstName,
-                        lastName: profile.lastName,
-                        fullName: profile.fullName,
-                        jobTitle: profile.jobTitle,
-                        department: profile.department,
-                        managementLevel: profile.managementLevel,
-                        seniorityLevel: profile.seniorityLevel,
-                        isDecisionMaker: profile.isDecisionMaker,
-                        email: profile.email,
-                        phone: profile.phone,
-                        linkedinUrl: profile.linkedinUrl,
-                        city: profile.city,
-                        state: profile.state,
-                        country: profile.country,
-                        companyId: profile.companyId,
-                        companyName: profile.companyName,
-                        companyIndustry: profile.companyIndustry,
-                        companySize: profile.companySize,
-                        companySizeRange: profile.companySizeRange,
-                        companyRevenue: profile.companyRevenue,
-                        companyDescription: profile.companyDescription,
-                        companyDomain: profile.companyDomain,
-                        companyFounded: profile.companyFounded,
-                        tenureMonths: profile.tenureMonths,
-                        recentJobChange: profile.recentJobChange,
-                        confidence: profile.confidence,
-                        dataSource: profile.dataSource,
-                        lastEnriched: profile.lastEnriched,
-                    }))
-                ).returning();
-
-                // Create operational records (trigger will handle this automatically)
-                // But we can also do it manually for clarity:
-                await tx.insert(campaignProfileOperations).values(
-                    insertedProfiles.map(profile => ({
-                        enrollmentProfileId: profile.id,
-                    }))
-                );
-            }
-
-            // Mark the profile list as used in campaigns
-            await markProfileListAsUsedInCampaigns(data.profileListId);
-
-            revalidatePath(`/campaigns/${data.campaignId}`);
-            revalidatePath("/campaigns");
-            revalidatePath(`/profile-lists/${data.profileListId}`);
-
-            return enrollment;
-        });
-    } catch (error) {
-        console.error("Error creating campaign enrollment:", error);
-        throw error;
-    }
 }
 
 // Get all enrollments for a campaign

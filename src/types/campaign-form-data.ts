@@ -1,4 +1,4 @@
-import { CampaignSettingsType, SendingDayType } from "@/lib/schema";
+import type {  CampaignSettings, CampaignSendingDays } from "@/lib/schema/types";
 import { Profile } from "@/types";
 
 export type TargetingMethod = 'profile_list';
@@ -48,10 +48,10 @@ export type CampaignFormData = {
     targeting: Omit<CampaignTargetingData, 'id' | 'campaignId'>
 
     // Campaign settings
-    settings: Omit<CampaignSettingsType, 'id' | 'campaignId'>
+    settings: Omit<CampaignSettings, 'id' | 'campaignId'>
 
     // Schedule
-    sendingDays: Omit<SendingDayType, 'id' | 'campaignId'>
+    sendingDays: Omit<CampaignSendingDays, 'id' | 'campaignId'>
 
 
 }

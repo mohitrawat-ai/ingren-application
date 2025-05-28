@@ -59,3 +59,4 @@ export async function getDb(): Promise<DbClient> {
 
 // Export the async function as the primary way to access the db
 export { getDb as db };
+

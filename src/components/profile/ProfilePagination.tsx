@@ -3,7 +3,7 @@
 
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PAGINATION_CONFIG } from '@/config/pagination';
+import { PAGINATION_CONFIG } from '@/lib/config/pagination';
 import {
   Select,
   SelectContent,
@@ -30,62 +30,47 @@ export function ProfilePagination({
   onPageChange,
   onPageSizeChange,
   showPageSizeSelector = true,
-}: ProfilePaginationProps) {
+}: Readonly<ProfilePaginationProps>) {
   // Calculate the range of results being shown
   const startResult = ((currentPage - 1) * pageSize) + 1;
   const endResult = Math.min(currentPage * pageSize, totalResults);
 
   // Generate page numbers to show
-  const getVisiblePages = () => {
+  const getVisiblePages = (): (number | 'ellipsis')[] => {
     const pages: (number | 'ellipsis')[] = [];
     const maxVisiblePages = 7;
-    
+
     if (totalPages <= maxVisiblePages) {
-      // Show all pages if total is small
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      // Always show first page
-      pages.push(1);
-      
-      // Calculate start and end of middle section
-      let start = Math.max(2, currentPage - 2);
-      let end = Math.min(totalPages - 1, currentPage + 2);
-      
-      // Adjust if we're near the beginning
-      if (currentPage <= 4) {
-        end = Math.min(totalPages - 1, 5);
-      }
-      
-      // Adjust if we're near the end
-      if (currentPage >= totalPages - 3) {
-        start = Math.max(2, totalPages - 4);
-      }
-      
-      // Add ellipsis before middle section if needed
-      if (start > 2) {
-        pages.push('ellipsis');
-      }
-      
-      // Add middle section
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const isNearStart = currentPage <= 4;
+    const isNearEnd = currentPage >= totalPages - 3;
+
+    const addRange = (start: number, end: number) => {
       for (let i = start; i <= end; i++) {
         pages.push(i);
       }
-      
-      // Add ellipsis after middle section if needed
-      if (end < totalPages - 1) {
-        pages.push('ellipsis');
-      }
-      
-      // Always show last page
-      if (totalPages > 1) {
-        pages.push(totalPages);
-      }
-    }
-    
+    };
+
+    pages.push(1); // Always show first page
+
+    if (!isNearStart) pages.push('ellipsis');
+
+    const currentPageOffset = isNearEnd ? totalPages - 4 : currentPage - 2;
+    const currentPageOffsetPlusTwo = isNearEnd ? totalPages - 1 : currentPage + 2;
+    const start = isNearStart ? 2 : currentPageOffset;
+    const end = isNearStart ? 5 : currentPageOffsetPlusTwo;
+
+    addRange(start, end);
+
+    if (!isNearEnd) pages.push('ellipsis');
+
+    pages.push(totalPages); // Always show last page
+
     return pages;
   };
+
 
   const visiblePages = getVisiblePages();
 
@@ -128,7 +113,7 @@ export function ProfilePagination({
           <span className="font-medium">{endResult.toLocaleString()}</span> of{" "}
           <span className="font-medium">{totalResults.toLocaleString()}</span> results
         </div>
-        
+
         {showPageSizeSelector && onPageSizeChange && (
           <div className="flex items-center gap-2">
             <span>Show</span>
@@ -165,9 +150,9 @@ export function ProfilePagination({
 
         {/* Page numbers */}
         <div className="flex items-center gap-1">
-          {visiblePages.map((page, index) => (
+          {visiblePages.map((page) => (
             page === 'ellipsis' ? (
-              <div key={`ellipsis-${index}`} className="flex h-8 w-8 items-center justify-center">
+              <div key={`ellipsis-${page}`} className="flex h-8 w-8 items-center justify-center">
                 <MoreHorizontal className="h-4 w-4" />
               </div>
             ) : (
@@ -234,7 +219,7 @@ export function SimpleProfilePagination({
   currentPage,
   totalPages,
   onPageChange,
-}: SimpleProfilePaginationProps) {
+}: Readonly<SimpleProfilePaginationProps>) {
   return (
     <div className="flex items-center justify-center gap-2">
       <Button
@@ -246,13 +231,13 @@ export function SimpleProfilePagination({
         <ChevronLeft className="h-4 w-4 mr-1" />
         Previous
       </Button>
-      
+
       <div className="flex items-center gap-1 px-2">
         <span className="text-sm text-muted-foreground">
           Page {currentPage} of {totalPages}
         </span>
       </div>
-      
+
       <Button
         variant="outline"
         size="sm"
@@ -262,73 +247,6 @@ export function SimpleProfilePagination({
         Next
         <ChevronRight className="h-4 w-4 ml-1" />
       </Button>
-    </div>
-  );
-}
-
-// Mobile-optimized pagination component
-interface MobileProfilePaginationProps {
-  currentPage: number;
-  totalPages: number;
-  totalResults: number;
-  onPageChange: (page: number) => void;
-}
-
-export function MobileProfilePagination({
-  currentPage,
-  totalPages,
-  totalResults,
-  onPageChange,
-}: MobileProfilePaginationProps) {
-  return (
-    <div className="flex flex-col gap-3">
-      {/* Results summary */}
-      <div className="text-center text-sm text-muted-foreground">
-        Page {currentPage} of {totalPages} ({totalResults.toLocaleString()} total results)
-      </div>
-      
-      {/* Navigation buttons */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="flex-1 mr-2"
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Previous
-        </Button>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="flex-1 ml-2"
-        >
-          Next
-          <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-      </div>
-      
-      {/* Page indicator dots for small datasets */}
-      {totalPages <= 10 && (
-        <div className="flex items-center justify-center gap-1">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-            <button
-              key={page}
-              onClick={() => onPageChange(page)}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                page === currentPage 
-                  ? 'bg-primary' 
-                  : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
-              }`}
-              aria-label={`Go to page ${page}`}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

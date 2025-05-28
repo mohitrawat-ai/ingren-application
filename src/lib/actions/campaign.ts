@@ -3,7 +3,6 @@
 
 import { revalidatePath } from "next/cache";
 import { db as dbClient } from "@/lib/db";
-import { auth } from "@/lib/auth";
 import { takeProfileSnapshot } from "@/lib/utils/profile-snapshot";
 import {
   campaigns,
@@ -16,6 +15,8 @@ import { eq, and, ne } from "drizzle-orm";
 import { fromZonedTime } from 'date-fns-tz';
 import { parse } from 'date-fns';
 import type { DatabaseTransaction } from "@/types/database";
+import { SettingsFormData } from "@/types";
+import { requireAuth } from "@/lib/utils/auth-guard";
 
 const db = await dbClient();
 // Simple type definitions for this module
@@ -27,40 +28,10 @@ interface TargetingData {
   totalResults?: number;
 }
 
-interface SettingsData {
-  name: string;
-  description?: string;
-  emailSettings: {
-    fromName: string;
-    fromEmail: string;
-    emailService: string;
-  };
-  campaignSettings: {
-    timezone: string;
-    trackOpens: boolean;
-    trackClicks: boolean;
-    dailySendLimit: number;
-    unsubscribeLink: boolean;
-    sendingDays: {
-      monday: boolean;
-      tuesday: boolean;
-      wednesday: boolean;
-      thursday: boolean;
-      friday: boolean;
-      saturday: boolean;
-      sunday: boolean;
-    };
-    sendingTime: {
-      startTime: string;
-      endTime: string;
-    };
-  };
-}
 
 // Create a new campaign
 export async function createCampaign(name: string) {
-  const session = await auth();
-  const userId = session?.user?.id || "-1";
+  const { userId } = await requireAuth();
 
   const [campaign] = await db
     .insert(campaigns)
@@ -77,8 +48,7 @@ export async function createCampaign(name: string) {
 
 // Get all campaigns for the current user
 export async function getCampaigns() {
-  const session = await auth();
-  const userId = session?.user?.id || "-1";
+  const { userId } = await requireAuth();
 
   const campaignsList = await db.query.campaigns.findMany({
     where: and(
@@ -128,8 +98,8 @@ export async function getCampaigns() {
 
 // Get a single campaign by ID
 export async function getCampaign(id: number) {
-  const session = await auth();
-  const userId = session?.user?.id || "-1";
+  const { userId } = await requireAuth();
+
 
   const campaign = await db.query.campaigns.findFirst({
     where: and(
@@ -179,8 +149,8 @@ export async function getCampaign(id: number) {
 
 // Update campaign status (e.g., draft, active, paused)
 export async function updateCampaignStatus(id: number, status: string) {
-  const session = await auth();
-  const userId = session?.user?.id || "-1";
+  const { userId } = await requireAuth();
+
 
   const [updatedCampaign] = await db
     .update(campaigns)
@@ -207,8 +177,8 @@ export async function updateCampaignStatus(id: number, status: string) {
 
 // Delete a campaign
 export async function deleteCampaign(id: number) {
-  const session = await auth();
-  const userId = session?.user?.id || "-1";
+  const { userId } = await requireAuth();
+
 
   await db
     .update(campaigns)
@@ -224,8 +194,7 @@ export async function deleteCampaign(id: number) {
 }
 
 export async function saveTargeting(campaignId: number, data: TargetingData) {
-  const session = await auth();
-  const userId = session?.user?.id || "-1";
+  const { userId } = await requireAuth();
 
   // Verify campaign ownership
   const campaign = await db.query.campaigns.findFirst({
@@ -310,9 +279,9 @@ async function createEnrollmentFromProfileList(tx: DatabaseTransaction, campaign
 
 
 // Save settings data (UPDATED for new system)
-export async function saveSettings(campaignId: number, data: SettingsData) {
-  const session = await auth();
-  const userId = session?.user?.id || "-1";
+export async function saveSettings(campaignId: number, data: SettingsFormData) {
+  const { userId } = await requireAuth();
+
 
   // Verify campaign ownership
   const campaign = await db.query.campaigns.findFirst({
@@ -365,62 +334,52 @@ export async function saveSettings(campaignId: number, data: SettingsData) {
     const timeZone = data.campaignSettings.timezone;
     const sendingStartTime = localTimeToUTCTimeString(data.campaignSettings.sendingTime.startTime, timeZone);
     const sendingEndTime = localTimeToUTCTimeString(data.campaignSettings.sendingTime.endTime, timeZone);
+    const settingsData = {
+      fromName: data.emailSettings.fromName,
+      fromEmail: data.emailSettings.fromEmail,
+      emailService: data.emailSettings.emailService,
+      timezone: timeZone,
+      dailySendLimit: data.campaignSettings.dailySendLimit,
+      sendingStartTime: sendingStartTime,
+      sendingEndTime: sendingEndTime,
+      tone: data.campaignSettings.tone,          
+      cta: data.campaignSettings.cta,
+    }
+    const dayTimeData = {
+      monday: data.campaignSettings.sendingDays.monday,
+      tuesday: data.campaignSettings.sendingDays.tuesday,
+      wednesday: data.campaignSettings.sendingDays.wednesday,
+      thursday: data.campaignSettings.sendingDays.thursday,
+      friday: data.campaignSettings.sendingDays.friday,
+      saturday: data.campaignSettings.sendingDays.saturday,
+      sunday: data.campaignSettings.sendingDays.sunday,
+    }
 
-    // Update campaign settings
+    // Update campaign settings (now includes tone and cta)
     await tx
       .insert(campaignSettings)
       .values({
         campaignId,
-        fromName: data.emailSettings.fromName,
-        fromEmail: data.emailSettings.fromEmail,
-        emailService: data.emailSettings.emailService,
-        timezone: timeZone,
-        trackOpens: data.campaignSettings.trackOpens,
-        trackClicks: data.campaignSettings.trackClicks,
-        dailySendLimit: data.campaignSettings.dailySendLimit,
-        unsubscribeLink: data.campaignSettings.unsubscribeLink,
-        sendingStartTime: sendingStartTime,
-        sendingEndTime: sendingEndTime,
+        ...settingsData
       })
       .onConflictDoUpdate({
         target: [campaignSettings.campaignId],
         set: {
-          fromName: data.emailSettings.fromName,
-          fromEmail: data.emailSettings.fromEmail,
-          emailService: data.emailSettings.emailService,
-          timezone: timeZone,
-          trackOpens: data.campaignSettings.trackOpens,
-          trackClicks: data.campaignSettings.trackClicks,
-          dailySendLimit: data.campaignSettings.dailySendLimit,
-          unsubscribeLink: data.campaignSettings.unsubscribeLink,
-          sendingStartTime: sendingStartTime,
-          sendingEndTime: sendingEndTime,
+          ...settingsData
         },
       });
 
-    // Update sending days
+    // Update sending days (unchanged)
     await tx
       .insert(campaignSendingDays)
       .values({
         campaignId,
-        monday: data.campaignSettings.sendingDays.monday,
-        tuesday: data.campaignSettings.sendingDays.tuesday,
-        wednesday: data.campaignSettings.sendingDays.wednesday,
-        thursday: data.campaignSettings.sendingDays.thursday,
-        friday: data.campaignSettings.sendingDays.friday,
-        saturday: data.campaignSettings.sendingDays.saturday,
-        sunday: data.campaignSettings.sendingDays.sunday,
+        ...dayTimeData
       })
       .onConflictDoUpdate({
         target: [campaignSendingDays.campaignId],
         set: {
-          monday: data.campaignSettings.sendingDays.monday,
-          tuesday: data.campaignSettings.sendingDays.tuesday,
-          wednesday: data.campaignSettings.sendingDays.wednesday,
-          thursday: data.campaignSettings.sendingDays.thursday,
-          friday: data.campaignSettings.sendingDays.friday,
-          saturday: data.campaignSettings.sendingDays.saturday,
-          sunday: data.campaignSettings.sendingDays.sunday,
+          ...dayTimeData
         },
       });
   });

@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Profile } from "@/types/profile";
+import * as ProfileFunctions from "@/lib/utils/profile-functions";
 
 interface ProfileListProps {
   profiles: Profile[];
@@ -23,7 +24,7 @@ export function ProfileList({
   onToggleSelection,
   viewMode = 'cards',
   showSelection = true 
-}: ProfileListProps) {
+}: Readonly<ProfileListProps>) {
   const isSelected = (profile: Profile): boolean => {
     return selectedProfiles.some(selected => selected.id === profile.id);
   };
@@ -66,10 +67,7 @@ interface ProfileCardProps {
   showSelection?: boolean;
 }
 
-function ProfileCard({ profile, isSelected, onToggleSelection, showSelection = true }: ProfileCardProps) {
-  const getInitials = (profile: Profile): string => {
-    return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase() || '?';
-  };
+function ProfileCard({ profile, isSelected, onToggleSelection, showSelection = true }: Readonly<ProfileCardProps>) {
 
   const formatLocation = (profile: Profile): string => {
     return [profile.city, profile.state, profile.country]
@@ -127,7 +125,7 @@ function ProfileCard({ profile, isSelected, onToggleSelection, showSelection = t
           {/* Avatar */}
           <Avatar className="h-12 w-12 flex-shrink-0">
             <AvatarFallback className="bg-primary/10 text-primary font-medium">
-              {getInitials(profile)}
+              {ProfileFunctions.getInitials(profile)}
             </AvatarFallback>
           </Avatar>
           
@@ -227,8 +225,8 @@ function ProfileCard({ profile, isSelected, onToggleSelection, showSelection = t
               <div className="mt-3">
                 <div className="text-xs text-muted-foreground mb-1">Skills:</div>
                 <div className="flex flex-wrap gap-1">
-                  {profile.skills.slice(0, 3).map((skill, index) => (
-                    <Badge key={index} variant="outline" className="text-xs">
+                  {profile.skills.slice(0, 3).map((skill) => (
+                    <Badge key={skill} variant="outline" className="text-xs">
                       {skill}
                     </Badge>
                   ))}
@@ -261,7 +259,7 @@ interface ProfileTableProps {
   showSelection?: boolean;
 }
 
-function ProfileTable({ profiles, selectedProfiles, onToggleSelection, showSelection = true }: ProfileTableProps) {
+function ProfileTable({ profiles, selectedProfiles, onToggleSelection, showSelection = true }: Readonly<ProfileTableProps>) {
   const isSelected = (profile: Profile): boolean => {
     return selectedProfiles.some(selected => selected.id === profile.id);
   };

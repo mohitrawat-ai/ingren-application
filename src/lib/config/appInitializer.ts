@@ -15,14 +15,12 @@ class AppInitializer {
   }
 
   public async ensureInitialized(): Promise<void> {
-    if (!this.initPromise) {
-      this.initPromise = initializeConfig().catch(err => {
+    this.initPromise ??= initializeConfig().catch(err => {
         console.error('Failed to initialize app:', err);
         // Reset the promise so we can try again
         this.initPromise = null;
         throw err;
       });
-    }
     return this.initPromise;
   }
 }

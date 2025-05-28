@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { Profile, ProfileFilters } from '@/types/profile';
-import { PAGINATION_CONFIG } from '@/config/pagination';
+import { PAGINATION_CONFIG } from '@/lib/config/pagination';
 
 
 interface ProfileUIState {

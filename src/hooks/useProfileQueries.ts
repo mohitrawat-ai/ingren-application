@@ -1,7 +1,7 @@
 // src/hooks/useProfileQueries.ts - Simplified without automatic retries
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PAGINATION_CONFIG } from '@/config/pagination';
+import { PAGINATION_CONFIG } from '@/lib/config/pagination';
 
 import { 
   getFilterOptions, 

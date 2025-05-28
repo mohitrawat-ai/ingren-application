@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { db as dbClient} from "@/lib/db";
-import { campaigns, urls } from "@/lib/schema";
+import { campaigns } from "@/lib/schema";
 import { eq, count } from "drizzle-orm";
 import { format, subDays } from "date-fns";
 
@@ -77,12 +77,7 @@ export async function getDashboardStats(period: string = "7d"): Promise<Dashboar
 
   const totalCampaigns = campaignCount[0]?.count || 0;
   
-  // Get actual URL count
-  const urlCount = await db
-    .select({ count: count() })
-    .from(urls);
-
-  const totalUrls = urlCount[0]?.count || 0;
+  const totalUrls =  0;
 
   // Create some realistic mock data
   const mockCampaignNames = [

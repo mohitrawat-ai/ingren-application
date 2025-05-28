@@ -46,6 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { Profile } from "@/types/profile";
 import { cn } from "@/lib/utils";
+import * as ProfileFunctions from "@/lib/utils/profile-functions";
 
 interface ProfileDataTableProps {
   profiles: Profile[];
@@ -149,11 +150,6 @@ export function ProfileDataTable({
   // Check if profile is selected
   const isSelected = (profile: Profile): boolean => {
     return selectedProfiles.some(selected => selected.id === profile.id);
-  };
-
-  // Get profile initials
-  const getInitials = (profile: Profile): string => {
-    return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase() || '?';
   };
 
   // Format location
@@ -372,7 +368,7 @@ export function ProfileDataTable({
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-xs font-medium">
-                        {getInitials(profile)}
+                        {ProfileFunctions.getInitials(profile)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">

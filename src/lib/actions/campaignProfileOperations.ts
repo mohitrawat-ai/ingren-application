@@ -3,7 +3,6 @@
 
 import { revalidatePath } from "next/cache";
 import { db as dbClient } from "@/lib/db";
-import { auth } from "@/lib/auth";
 import {
     campaignProfileOperations,
     campaignEnrollmentProfiles,
@@ -11,36 +10,54 @@ import {
     campaigns
 } from "@/lib/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { requireAuth } from "@/lib/utils/auth-guard";
 
 const db = await dbClient();
+
+async function verifyOwnershipEnrollment(enrollmentProfileId: number) {
+    const { userId } = await requireAuth();
+    const profileWithCampaign = await db.query.campaignEnrollmentProfiles.findFirst({
+        where: eq(campaignEnrollmentProfiles.id, enrollmentProfileId),
+        with: {
+            enrollment: {
+                with: {
+                    campaign: true,
+                },
+            },
+        },
+    });
+
+    if (!profileWithCampaign || profileWithCampaign.enrollment.campaign.userId !== userId) {
+        throw new Error("Profile not found or unauthorized");
+    }
+
+    return profileWithCampaign.enrollment.campaignId;
+}
+
+function getResponseStatus(status: string) {
+    let responseStatus: string;
+    switch (status) {
+        case 'replied':
+        case 'clicked':
+            responseStatus = 'engaged';
+            break;
+        case 'bounced':
+            responseStatus = 'bounced';
+            break;
+        default:
+            responseStatus = 'none';
+    }
+    return responseStatus
+}
 
 // Update email status for a profile
 export async function updateProfileEmailStatus(
     enrollmentProfileId: number,
     status: 'pending' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'failed'
 ) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
 
     try {
-        // Verify ownership through campaign enrollment
-        const profileWithCampaign = await db.query.campaignEnrollmentProfiles.findFirst({
-            where: eq(campaignEnrollmentProfiles.id, enrollmentProfileId),
-            with: {
-                enrollment: {
-                    with: {
-                        campaign: true,
-                    },
-                },
-            },
-        });
-
-        if (!profileWithCampaign || profileWithCampaign.enrollment.campaign.userId !== session.user.id) {
-            throw new Error("Profile not found or unauthorized");
-        }
-
+        const campaignId = await verifyOwnershipEnrollment(enrollmentProfileId);
         // Update operational status
         await db
             .update(campaignProfileOperations)
@@ -48,8 +65,7 @@ export async function updateProfileEmailStatus(
                 emailStatus: status,
                 lastEmailSent: status === 'sent' ? new Date() : undefined,
                 emailsSentCount: status === 'sent' ? sql`emails_sent_count + 1` : undefined,
-                responseStatus: ['replied', 'clicked'].includes(status) ? 'engaged' :
-                    status === 'bounced' ? 'bounced' : 'none',
+                responseStatus: getResponseStatus(status),
                 firstResponseDate: ['replied', 'clicked'].includes(status) ? sql`COALESCE(first_response_date, ${new Date()})` : undefined,
                 lastResponseDate: ['replied', 'clicked'].includes(status) ? new Date() : undefined,
                 openCount: status === 'opened' ? sql`open_count + 1` : undefined,
@@ -60,7 +76,7 @@ export async function updateProfileEmailStatus(
             })
             .where(eq(campaignProfileOperations.enrollmentProfileId, enrollmentProfileId));
 
-        revalidatePath(`/campaigns/${profileWithCampaign.enrollment.campaign.id}`);
+        revalidatePath(`/campaigns/${campaignId}`);
     } catch (error) {
         console.error("Error updating profile email status:", error);
         throw error;
@@ -72,28 +88,9 @@ export async function pauseProfileInCampaign(
     enrollmentProfileId: number,
     reason?: string
 ) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
 
     try {
-        // Verify ownership
-        const profileWithCampaign = await db.query.campaignEnrollmentProfiles.findFirst({
-            where: eq(campaignEnrollmentProfiles.id, enrollmentProfileId),
-            with: {
-                enrollment: {
-                    with: {
-                        campaign: true,
-                    },
-                },
-            },
-        });
-
-        if (!profileWithCampaign || profileWithCampaign.enrollment.campaign.userId !== session.user.id) {
-            throw new Error("Profile not found or unauthorized");
-        }
-
+        const campaignId = await verifyOwnershipEnrollment(enrollmentProfileId);
         await db
             .update(campaignProfileOperations)
             .set({
@@ -104,7 +101,7 @@ export async function pauseProfileInCampaign(
             })
             .where(eq(campaignProfileOperations.enrollmentProfileId, enrollmentProfileId));
 
-        revalidatePath(`/campaigns/${profileWithCampaign.enrollment.campaign.id}`);
+        revalidatePath(`/campaigns/${campaignId}`);
     } catch (error) {
         console.error("Error pausing profile:", error);
         throw error;
@@ -113,28 +110,8 @@ export async function pauseProfileInCampaign(
 
 // Resume a profile in the campaign
 export async function resumeProfileInCampaign(enrollmentProfileId: number) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
-
     try {
-        // Verify ownership
-        const profileWithCampaign = await db.query.campaignEnrollmentProfiles.findFirst({
-            where: eq(campaignEnrollmentProfiles.id, enrollmentProfileId),
-            with: {
-                enrollment: {
-                    with: {
-                        campaign: true,
-                    },
-                },
-            },
-        });
-
-        if (!profileWithCampaign || profileWithCampaign.enrollment.campaign.userId !== session.user.id) {
-            throw new Error("Profile not found or unauthorized");
-        }
-
+        const campaignId = await verifyOwnershipEnrollment(enrollmentProfileId);
         await db
             .update(campaignProfileOperations)
             .set({
@@ -145,7 +122,7 @@ export async function resumeProfileInCampaign(enrollmentProfileId: number) {
             })
             .where(eq(campaignProfileOperations.enrollmentProfileId, enrollmentProfileId));
 
-        revalidatePath(`/campaigns/${profileWithCampaign.enrollment.campaign.id}`);
+        revalidatePath(`/campaigns/${campaignId}`);
     } catch (error) {
         console.error("Error resuming profile:", error);
         throw error;
@@ -154,27 +131,8 @@ export async function resumeProfileInCampaign(enrollmentProfileId: number) {
 
 // Mark profile as unsubscribed
 export async function unsubscribeProfile(enrollmentProfileId: number) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
-
     try {
-        // Verify ownership
-        const profileWithCampaign = await db.query.campaignEnrollmentProfiles.findFirst({
-            where: eq(campaignEnrollmentProfiles.id, enrollmentProfileId),
-            with: {
-                enrollment: {
-                    with: {
-                        campaign: true,
-                    },
-                },
-            },
-        });
-
-        if (!profileWithCampaign || profileWithCampaign.enrollment.campaign.userId !== session.user.id) {
-            throw new Error("Profile not found or unauthorized");
-        }
+        const campaignId = await verifyOwnershipEnrollment(enrollmentProfileId);
 
         await db
             .update(campaignProfileOperations)
@@ -186,7 +144,7 @@ export async function unsubscribeProfile(enrollmentProfileId: number) {
             })
             .where(eq(campaignProfileOperations.enrollmentProfileId, enrollmentProfileId));
 
-        revalidatePath(`/campaigns/${profileWithCampaign.enrollment.campaign.id}`);
+        revalidatePath(`/campaigns/${campaignId}`);
     } catch (error) {
         console.error("Error unsubscribing profile:", error);
         throw error;
@@ -199,38 +157,18 @@ export async function scheduleNextContact(
     nextContactDate: Date,
     sequenceStep?: number
 ) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
-
     try {
-        // Verify ownership
-        const profileWithCampaign = await db.query.campaignEnrollmentProfiles.findFirst({
-            where: eq(campaignEnrollmentProfiles.id, enrollmentProfileId),
-            with: {
-                enrollment: {
-                    with: {
-                        campaign: true,
-                    },
-                },
-            },
-        });
-
-        if (!profileWithCampaign || profileWithCampaign.enrollment.campaign.userId !== session.user.id) {
-            throw new Error("Profile not found or unauthorized");
-        }
-
+        const campaignId = await verifyOwnershipEnrollment(enrollmentProfileId);
         await db
             .update(campaignProfileOperations)
             .set({
                 nextScheduledContact: nextContactDate,
-                currentSequenceStep: sequenceStep || sql`current_sequence_step + 1`,
+                currentSequenceStep: sequenceStep ?? sql`current_sequence_step + 1`,
                 updatedAt: new Date(),
             })
             .where(eq(campaignProfileOperations.enrollmentProfileId, enrollmentProfileId));
 
-        revalidatePath(`/campaigns/${profileWithCampaign.enrollment.campaign.id}`);
+        revalidatePath(`/campaigns/${campaignId}`);
     } catch (error) {
         console.error("Error scheduling next contact:", error);
         throw error;
@@ -242,28 +180,8 @@ export async function addProfileNotes(
     enrollmentProfileId: number,
     notes: string
 ) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
-
     try {
-        // Verify ownership
-        const profileWithCampaign = await db.query.campaignEnrollmentProfiles.findFirst({
-            where: eq(campaignEnrollmentProfiles.id, enrollmentProfileId),
-            with: {
-                enrollment: {
-                    with: {
-                        campaign: true,
-                    },
-                },
-            },
-        });
-
-        if (!profileWithCampaign || profileWithCampaign.enrollment.campaign.userId !== session.user.id) {
-            throw new Error("Profile not found or unauthorized");
-        }
-
+        const campaignId = await verifyOwnershipEnrollment(enrollmentProfileId);
         await db
             .update(campaignProfileOperations)
             .set({
@@ -272,31 +190,32 @@ export async function addProfileNotes(
             })
             .where(eq(campaignProfileOperations.enrollmentProfileId, enrollmentProfileId));
 
-        revalidatePath(`/campaigns/${profileWithCampaign.enrollment.campaign.id}`);
+        revalidatePath(`/campaigns/${campaignId}`);
     } catch (error) {
         console.error("Error adding profile notes:", error);
         throw error;
     }
 }
 
-// Get profiles that need to be contacted
-export async function getProfilesDueForContact(campaignId: number) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
+async function ownershipCampaign(campaignId: number) {
+    const { userId } = await requireAuth()
 
     // Verify campaign ownership
     const campaign = await db.query.campaigns.findFirst({
         where: and(
             eq(campaigns.id, campaignId),
-            eq(campaigns.userId, session.user.id)
+            eq(campaigns.userId, userId)
         ),
     });
 
     if (!campaign) {
         throw new Error("Campaign not found or unauthorized");
     }
+}
+
+// Get profiles that need to be contacted
+export async function getProfilesDueForContact(campaignId: number) {
+    await ownershipCampaign(campaignId);
 
     // Get enrollments with profiles that are due for contact
     const enrollments = await db.query.campaignEnrollments.findMany({
@@ -314,10 +233,10 @@ export async function getProfilesDueForContact(campaignId: number) {
     const dueProfiles = enrollments.flatMap(enrollment =>
         enrollment.enrolledProfiles.filter(profile => {
             const ops = profile.operations;
-            return ops && 
-                   ops.isActive === 'true' && 
-                   ops.nextScheduledContact && 
-                   new Date(ops.nextScheduledContact) <= now;
+            return ops &&
+                ops.isActive === 'true' &&
+                ops.nextScheduledContact &&
+                new Date(ops.nextScheduledContact) <= now;
         }).map(profile => ({
             ...profile,
             enrollmentId: enrollment.id,
@@ -329,22 +248,7 @@ export async function getProfilesDueForContact(campaignId: number) {
 
 // Get campaign performance statistics
 export async function getCampaignPerformanceStats(campaignId: number) {
-    const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error("Unauthorized");
-    }
-
-    // Verify campaign ownership
-    const campaign = await db.query.campaigns.findFirst({
-        where: and(
-            eq(campaigns.id, campaignId),
-            eq(campaigns.userId, session.user.id)
-        ),
-    });
-
-    if (!campaign) {
-        throw new Error("Campaign not found or unauthorized");
-    }
+    await ownershipCampaign(campaignId);
 
     const enrollments = await db.query.campaignEnrollments.findMany({
         where: eq(campaignEnrollments.campaignId, campaignId),
@@ -366,19 +270,19 @@ export async function getCampaignPerformanceStats(campaignId: number) {
         activeProfiles: allOperations.filter(op => op?.isActive === 'true').length,
         pausedProfiles: allOperations.filter(op => op?.isActive === 'paused').length,
         unsubscribedProfiles: allOperations.filter(op => op?.isActive === 'unsubscribed').length,
-        
+
         emailsSent: allOperations.reduce((sum, op) => sum + (op?.emailsSentCount || 0), 0),
         totalOpens: allOperations.reduce((sum, op) => sum + (op?.openCount || 0), 0),
         totalClicks: allOperations.reduce((sum, op) => sum + (op?.clickCount || 0), 0),
         totalReplies: allOperations.reduce((sum, op) => sum + (op?.replyCount || 0), 0),
-        
+
         emailStatusBreakdown: allOperations.reduce((acc, op) => {
             if (op?.emailStatus) {
                 acc[op.emailStatus] = (acc[op.emailStatus] || 0) + 1;
             }
             return acc;
         }, {} as Record<string, number>),
-        
+
         responseStatusBreakdown: allOperations.reduce((acc, op) => {
             if (op?.responseStatus) {
                 acc[op.responseStatus] = (acc[op.responseStatus] || 0) + 1;

@@ -6,8 +6,6 @@ export async function initializeConfig() {
   if (process.env.NODE_ENV !== 'production') {
     return
   }
-  if (!initPromise) {
-    initPromise = parameterStore.loadParameters();
-  }
+  initPromise ??= parameterStore.loadParameters();
   return initPromise;
 }

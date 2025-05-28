@@ -32,6 +32,7 @@ import { EmailPreviewDialog } from "@/components/campaign/email-preview-dialog";
 
 import { getCampaign, updateCampaignStatus } from "@/lib/actions/campaign";
 import { getCampaignEnrollmentStats } from "@/lib/actions/campaignEnrollment";
+import { CampaignSendingDays, CampaignSettings } from "@/lib/schema/types";
 
 interface CampaignDetailPageData {
   campaign: {
@@ -44,29 +45,8 @@ interface CampaignDetailPageData {
     isNewSystem: boolean;
     totalContacts: number;
     sourceListNames: string[];
-    settings?: {
-      id: number;
-      fromName: string;
-      fromEmail: string;
-      emailService: string;
-      timezone: string;
-      trackOpens: boolean;
-      trackClicks: boolean;
-      dailySendLimit: number;
-      unsubscribeLink: boolean;
-      sendingStartTime: string;
-      sendingEndTime: string;
-      startDate: Date;
-    };
-    sendingDays?: {
-      monday: boolean;
-      tuesday: boolean;
-      wednesday: boolean;
-      thursday: boolean;
-      friday: boolean;
-      saturday: boolean;
-      sunday: boolean;
-    };
+    settings?: CampaignSettings;
+    sendingDays?: CampaignSendingDays;
     enrollments?: Array<{
       id: number;
       sourceTargetListId: number;

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Path } from "react-hook-form";
+import * as campaignConfig from "@/lib/config/campaign";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -41,6 +41,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Volume2, Target } from "lucide-react";
 
 const settingsFormSchema = z.object({
   // Campaign basic info
@@ -54,13 +55,12 @@ const settingsFormSchema = z.object({
     emailService: z.string().min(1, "Email service is required"),
   }),
   
-  // Campaign settings
+  // Campaign settings (removed tracking options, added tone and CTA)
   campaignSettings: z.object({
     timezone: z.string().min(1, "Timezone is required"),
-    trackOpens: z.boolean(),
-    trackClicks: z.boolean(),
     dailySendLimit: z.number().min(1, "Daily send limit must be at least 1"),
-    unsubscribeLink: z.boolean(),
+    tone: z.string().min(1, "Email tone is required"),
+    cta: z.string().min(1, "Call-to-action is required"),
     sendingDays: z.object({
       monday: z.boolean(),
       tuesday: z.boolean(),
@@ -95,75 +95,20 @@ export function CampaignSettingsStep({
   initialData,
 }: CampaignSettingsStepProps) {
   // Default initial data
-  const defaultInitialData: SettingsFormValues = {
-    name: "",
-    description: "",
-    emailSettings: {
-      fromName: "",
-      fromEmail: "",
-      emailService: "",
-    },
-    campaignSettings: {
-      timezone: "UTC",
-      trackOpens: true,
-      trackClicks: true,
-      dailySendLimit: 500,
-      unsubscribeLink: true,
-      sendingDays: {
-        monday: true,
-        tuesday: true,
-        wednesday: true,
-        thursday: true,
-        friday: true,
-        saturday: false,
-        sunday: false,
-      },
-      sendingTime: {
-        startTime: "09:00",
-        endTime: "17:00",
-      },
-    },
-  };
+  const defaultInitialData = campaignConfig.defaultSettings;
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
     defaultValues: { ...defaultInitialData, ...initialData },
   });
 
-  // Email service options
-  const emailServices = [
-    { value: "sendgrid", label: "SendGrid" },
-    { value: "mailchimp", label: "Mailchimp" },
-    { value: "ses", label: "Amazon SES" },
-    { value: "smtp", label: "Custom SMTP" },
-  ];
-
-  // Timezone options
-  const timezones = [
-    { value: "UTC", label: "UTC" },
-    { value: "America/New_York", label: "Eastern Time (ET)" },
-    { value: "America/Chicago", label: "Central Time (CT)" },
-    { value: "America/Denver", label: "Mountain Time (MT)" },
-    { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
-    { value: "Europe/London", label: "London (GMT)" },
-    { value: "Europe/Paris", label: "Central European Time (CET)" },
-    { value: "Asia/Singapore", label: "Singapore Time (SGT)" },
-    { value: "Asia/Tokyo", label: "Japan Standard Time (JST)" },
-    { value: "Australia/Sydney", label: "Australian Eastern Time (AET)" },
-    { value: "Asia/Kolkata", label: "India Standard Time (IST)" },
-  ];
-
-  // Day labels for the form
-  const days: { value: Path<SettingsFormValues>; label: string }[] = [
-    { value: "campaignSettings.sendingDays.monday", label: "Monday" },
-    { value: "campaignSettings.sendingDays.tuesday", label: "Tuesday" },
-    { value: "campaignSettings.sendingDays.wednesday", label: "Wednesday" },
-    { value: "campaignSettings.sendingDays.thursday", label: "Thursday" },
-    { value: "campaignSettings.sendingDays.friday", label: "Friday" },
-    { value: "campaignSettings.sendingDays.saturday", label: "Saturday" },
-    { value: "campaignSettings.sendingDays.sunday", label: "Sunday" },
-  ];
-
+  
+  const emailServices = campaignConfig.emailServices;
+  const timezones = campaignConfig.timezones
+  const toneOptions = campaignConfig.toneOptions
+  const ctaOptions = campaignConfig.ctaOptions
+  const days = campaignConfig.days as { value: Path<SettingsFormValues>; label: string }[];
+  
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -313,6 +258,91 @@ export function CampaignSettingsStep({
                   </Select>
                   <FormDescription>
                     Email delivery service to use
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
+
+        {/* New Email Personalization Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Email Personalization</CardTitle>
+            <CardDescription>
+              Configure the tone and call-to-action for your emails
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <FormField
+              control={form.control}
+              name="campaignSettings.tone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <Volume2 className="h-4 w-4" />
+                    Email Tone
+                  </FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select email tone" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {toneOptions.map(tone => (
+                        <SelectItem key={tone.value} value={tone.value}>
+                          <div>
+                            <div className="font-medium">{tone.label}</div>
+                            <div className="text-xs text-muted-foreground">{tone.description}</div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    This sets the overall tone and style of your email communication
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="campaignSettings.cta"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <Target className="h-4 w-4" />
+                    Call-to-Action
+                  </FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select call-to-action" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ctaOptions.map(cta => (
+                        <SelectItem key={cta.value} value={cta.value}>
+                          <div>
+                            <div className="font-medium">{cta.label}</div>
+                            <div className="text-xs text-muted-foreground">{cta.description}</div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    The primary action you want recipients to take
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -474,81 +504,6 @@ export function CampaignSettingsStep({
                       </Tooltip>
                     </TooltipProvider>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Tracking Options</CardTitle>
-            <CardDescription>
-              Configure email tracking settings
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex flex-col space-y-4">
-              <FormField
-                control={form.control}
-                name="campaignSettings.trackOpens"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Track Opens</FormLabel>
-                      <FormDescription>
-                        Track when recipients open your emails
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="campaignSettings.trackClicks"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Track Clicks</FormLabel>
-                      <FormDescription>
-                        Track when recipients click links in your emails
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="campaignSettings.unsubscribeLink"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Include Unsubscribe Link</FormLabel>
-                      <FormDescription>
-                        Add an unsubscribe link to all emails
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
                   </FormItem>
                 )}
               />

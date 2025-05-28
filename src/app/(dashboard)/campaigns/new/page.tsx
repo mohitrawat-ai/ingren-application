@@ -19,6 +19,9 @@ import { CampaignTargetingStep } from "@/components/campaign/targeting/CampaignT
 import { CampaignSettingsStep } from "@/components/campaign/settings/CampaignSettingsStep";
 import { CampaignReviewStep } from "@/components/campaign/review/CampaignReviewStep";
 
+import { SettingsFormData } from "@/types";
+import * as campaignConfig from "@/lib/config/campaign";
+
 import { 
   createCampaign, 
   saveTargeting, 
@@ -39,39 +42,9 @@ interface CampaignTargetingData {
   totalProfiles?: number;
 }
 
-interface SettingsData {
-  name: string;
-  description?: string;
-  emailSettings: {
-    fromName: string;
-    fromEmail: string;
-    emailService: string;
-  };
-  campaignSettings: {
-    timezone: string;
-    trackOpens: boolean;
-    trackClicks: boolean;
-    dailySendLimit: number;
-    unsubscribeLink: boolean;
-    sendingDays: {
-      monday: boolean;
-      tuesday: boolean;
-      wednesday: boolean;
-      thursday: boolean;
-      friday: boolean;
-      saturday: boolean;
-      sunday: boolean;
-    };
-    sendingTime: {
-      startTime: string;
-      endTime: string;
-    };
-  };
-}
-
 interface CampaignFormData {
   targeting: CampaignTargetingData | null;
-  settings: SettingsData | null;
+  settings: SettingsFormData | null;
 }
 
 type Step = 'targeting' | 'settings' | 'review';
@@ -172,7 +145,7 @@ export default function NewCampaignPage() {
   };
 
   // Handle settings form submission
-  const handleSettingsSubmit = async (data: SettingsData) => {
+  const handleSettingsSubmit = async (data: SettingsFormData) => {
     if (!campaignId) {
       toast.error("Campaign not found");
       return;
@@ -359,35 +332,7 @@ export default function NewCampaignPage() {
               <CampaignSettingsStep 
                 onSubmit={handleSettingsSubmit}
                 isSubmitting={isSubmitting}
-                initialData={formData.settings || {
-                  name: "",
-                  description: "",
-                  emailSettings: {
-                    fromName: "",
-                    fromEmail: "",
-                    emailService: "",
-                  },
-                  campaignSettings: {
-                    timezone: "UTC",
-                    trackOpens: true,
-                    trackClicks: true,
-                    dailySendLimit: 500,
-                    unsubscribeLink: true,
-                    sendingDays: {
-                      monday: true,
-                      tuesday: true,
-                      wednesday: true,
-                      thursday: true,
-                      friday: true,
-                      saturday: false,
-                      sunday: false,
-                    },
-                    sendingTime: {
-                      startTime: "09:00",
-                      endTime: "17:00",
-                    },
-                  },
-                }}
+                initialData={formData.settings || campaignConfig.defaultSettings}
               />
             )}
             
@@ -402,10 +347,9 @@ export default function NewCampaignPage() {
                     fromEmail: formData.settings.emailSettings.fromEmail,
                     emailService: formData.settings.emailSettings.emailService,
                     timezone: formData.settings.campaignSettings.timezone,
-                    trackOpens: formData.settings.campaignSettings.trackOpens,
-                    trackClicks: formData.settings.campaignSettings.trackClicks,
+                    tone : formData.settings.campaignSettings.tone,
+                    cta: formData.settings.campaignSettings.cta,
                     dailySendLimit: formData.settings.campaignSettings.dailySendLimit,
-                    unsubscribeLink: formData.settings.campaignSettings.unsubscribeLink,
                     sendingStartTime: formData.settings.campaignSettings.sendingTime.startTime,
                     sendingEndTime: formData.settings.campaignSettings.sendingTime.endTime,
                     startDate: new Date(),

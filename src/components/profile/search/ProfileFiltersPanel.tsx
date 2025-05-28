@@ -21,7 +21,7 @@ import { useProfileStore } from "@/stores/profileStore";
 import { ProfileFilterOptionsResponse } from "@/types/profile";
 
 // Import our new SearchableMultiSelect component
-import { SearchableMultiSelect } from "@/components/ui/searchable-multi-select";
+import { ProfileSearchableMultiSelect } from "@/components/profile/search/ProfileFilterSearchableMultiSelect";
 
 interface ProfileFiltersPanelProps {
   filterOptions?: ProfileFilterOptionsResponse | null;
@@ -83,9 +83,9 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
   };
 
   const handleBooleanFilter = (path: string, checked: boolean) => {
-  // If unchecked, remove the filter entirely by setting to undefined
-  updateDraftFilter(path, checked ? true : undefined);
-};
+    // If unchecked, remove the filter entirely by setting to undefined
+    updateDraftFilter(path, checked ? true : undefined);
+  };
 
   const getSelectedCount = (path: string): number => {
     const pathParts = path.split('.');
@@ -157,54 +157,30 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
             {/* Countries - Now using SearchableMultiSelect */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Countries</Label>
-                {getSelectedCount('location.countries') > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearFilter('location.countries')}
-                    className="h-6 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              <SearchableMultiSelect
-                options={filterOptions.countries || []}
-                selectedValues={draftFilters.location?.countries || []}
-                onSelectionChange={(values) => handleMultiSelectFilter('location.countries', values)}
-                placeholder="Select countries..."
-                searchPlaceholder="Search countries..."
-                maxDisplay={2}
-              />
-            </div>
+            <ProfileSearchableMultiSelect
+              name="Countries"
+              filterPath="location.countries"
+              filterOptions={filterOptions.countries || []}
+              getSelectedCount={getSelectedCount}
+              handleMultiSelectFilter={handleMultiSelectFilter}
+              clearFilter={clearFilter}
+              selectedValues={draftFilters.location?.countries || []}
+              placeholder="Select countries..."
+              searchPlaceholder="Search countries..."
+            />
 
             {/* US States - Now using SearchableMultiSelect */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">US States</Label>
-                {getSelectedCount('location.states') > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearFilter('location.states')}
-                    className="h-6 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              <SearchableMultiSelect
-                options={filterOptions.usStates || []}
-                selectedValues={draftFilters.location?.states || []}
-                onSelectionChange={(values) => handleMultiSelectFilter('location.states', values)}
-                placeholder="Select US states..."
-                searchPlaceholder="Search states..."
-                maxDisplay={2}
-              />
-            </div>
+            <ProfileSearchableMultiSelect
+              name="US States"
+              filterPath="location.states"
+              filterOptions={filterOptions.usStates || []}
+              getSelectedCount={getSelectedCount}
+              handleMultiSelectFilter={handleMultiSelectFilter}
+              clearFilter={clearFilter}
+              selectedValues={draftFilters.location?.states || []}
+              placeholder="Select US States ..."
+              searchPlaceholder="Search US States..."
+            />
 
             {/* Cities - Keep as text input since it's more flexible */}
             <div className="space-y-2">
@@ -249,87 +225,51 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
             </div>
 
             {/* Departments - Now using SearchableMultiSelect */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Departments</Label>
-                {getSelectedCount('role.departments') > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearFilter('role.departments')}
-                    className="h-6 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              <SearchableMultiSelect
-                options={filterOptions.departments || []}
-                selectedValues={draftFilters.role?.departments || []}
-                onSelectionChange={(values) => handleMultiSelectFilter('role.departments', values)}
-                placeholder="Select departments..."
-                searchPlaceholder="Search departments..."
-                maxDisplay={2}
-              />
-            </div>
+            <ProfileSearchableMultiSelect
+              name="Departments"
+              filterPath="role.departments"
+              filterOptions={filterOptions.departments || []}
+              getSelectedCount={getSelectedCount}
+              handleMultiSelectFilter={handleMultiSelectFilter}
+              clearFilter={clearFilter}
+              selectedValues={draftFilters.role?.departments || []}
+              placeholder="Select departments..."
+              searchPlaceholder="Search departments..."
+            />
 
             {/* Management Levels - Now using SearchableMultiSelect */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Management Level</Label>
-                {getSelectedCount('role.managementLevels') > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearFilter('role.managementLevels')}
-                    className="h-6 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              <SearchableMultiSelect
-                options={filterOptions.managementLevels || []}
-                selectedValues={draftFilters.role?.managementLevels || []}
-                onSelectionChange={(values) => handleMultiSelectFilter('role.managementLevels', values)}
-                placeholder="Select management levels..."
-                searchPlaceholder="Search levels..."
-                maxDisplay={3}
-              />
-            </div>
+            <ProfileSearchableMultiSelect
+              name="Management Level"
+              filterPath="role.managementLevels"
+              filterOptions={filterOptions.managementLevels || []}
+              getSelectedCount={getSelectedCount}
+              handleMultiSelectFilter={handleMultiSelectFilter}
+              clearFilter={clearFilter}
+              selectedValues={draftFilters.role?.managementLevels || []}
+              placeholder="Select management levels..."
+              searchPlaceholder="Search levels..."
+            />
 
             {/* Seniority Levels - Now using SearchableMultiSelect for consistency */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Seniority Level</Label>
-                {getSelectedCount('role.seniorityLevels') > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearFilter('role.seniorityLevels')}
-                    className="h-6 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              <SearchableMultiSelect
-                options={[
-                  { value: 'c-level', label: 'C-Level' },
-                  { value: 'vp', label: 'VP' },
-                  { value: 'director', label: 'Director' },
-                  { value: 'manager', label: 'Manager' },
-                  { value: 'senior', label: 'Senior' },
-                  { value: 'mid-level', label: 'Mid-Level' },
-                  { value: 'junior', label: 'Junior' }
-                ]}
-                selectedValues={draftFilters.role?.seniorityLevels || []}
-                onSelectionChange={(values) => handleMultiSelectFilter('role.seniorityLevels', values)}
-                placeholder="Select seniority levels..."
-                searchPlaceholder="Search levels..."
-                maxDisplay={2}
-              />
-            </div>
+            <ProfileSearchableMultiSelect
+              name="Seniority Level"
+              filterPath="role.seniorityLevels"
+              filterOptions={[
+                { value: 'c-level', label: 'C-Level' },
+                { value: 'vp', label: 'VP' },
+                { value: 'director', label: 'Director' },
+                { value: 'manager', label: 'Manager' },
+                { value: 'senior', label: 'Senior' },
+                { value: 'mid-level', label: 'Mid-Level' },
+                { value: 'junior', label: 'Junior' }
+              ]}
+              getSelectedCount={getSelectedCount}
+              handleMultiSelectFilter={handleMultiSelectFilter}
+              clearFilter={clearFilter}
+              selectedValues={draftFilters.role?.seniorityLevels || []}
+              placeholder="Select seniority levels..."
+              searchPlaceholder="Search levels..."
+            />
 
             {/* Decision Maker */}
             <div className="flex items-center space-x-2">
@@ -362,29 +302,18 @@ export function ProfileFiltersPanel({ filterOptions }: ProfileFiltersPanelProps)
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
             {/* Industries - Now using SearchableMultiSelect */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Industries</Label>
-                {getSelectedCount('company.industries') > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearFilter('company.industries')}
-                    className="h-6 px-2 text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-              <SearchableMultiSelect
-                options={filterOptions.industries || []}
-                selectedValues={draftFilters.company?.industries || []}
-                onSelectionChange={(values) => handleMultiSelectFilter('company.industries', values)}
-                placeholder="Select industries..."
-                searchPlaceholder="Search industries..."
-                maxDisplay={2}
-              />
-            </div>
+
+               <ProfileSearchableMultiSelect
+              name="Industries"
+              filterPath="company.industries"
+              filterOptions={filterOptions.industries || []}
+              getSelectedCount={getSelectedCount}
+              handleMultiSelectFilter={handleMultiSelectFilter}
+              clearFilter={clearFilter}
+              selectedValues={draftFilters.company?.industries || []}
+              placeholder="Select industries..."
+              searchPlaceholder="Search industries..."
+            />
 
             {/* Company Size */}
             <div className="space-y-2">

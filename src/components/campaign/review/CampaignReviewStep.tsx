@@ -1,7 +1,7 @@
-// src/components/campaign/review/CampaignReviewStep.tsx
+// src/components/campaign/review/CampaignReviewStep.tsx - Updated to show tone and CTA
 "use client";
 
-import { Users, Clock, Calendar, Settings, AlertCircle, List } from "lucide-react";
+import { Users, Clock, Calendar, Settings, AlertCircle, List, Volume2, Target } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +15,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { CampaignFormData } from "@/types";
+import * as CampaignConfig from "@/lib/config/campaign";
 
 interface CampaignReviewStepProps {
-  formData: CampaignFormData
+  formData: CampaignFormData & {
+    settings: CampaignFormData['settings'];
+  };
   onBack: () => void;
   onCreate: () => void;
   creating: boolean;
@@ -29,12 +32,13 @@ export function CampaignReviewStep({
   onCreate,
   creating,
 }: CampaignReviewStepProps) {
+  
   const getTargetingMethodIcon = () => {
     switch (formData.targeting.method) {
       case 'profile_list':
         return <List className="h-5 w-5" />;
+    }
   };
-}
 
   const getTargetingMethodLabel = () => {
     switch (formData.targeting.method) {
@@ -50,12 +54,21 @@ export function CampaignReviewStep({
     }
   };
 
-const getActiveSendingDays = (): string => {
-  return Object.entries(formData.sendingDays)
-    .filter(([, active]: [string, boolean]) => active)
-    .map(([day]: [string, boolean]) => day.charAt(0).toUpperCase() + day.slice(1, 3))
-    .join(', ');
-};
+  // Helper functions for display names
+  const getToneDisplayName = (tone: string) => {
+    return CampaignConfig.toneOptionsMap.get(tone)?.value || tone;
+  };
+
+  const getCtaDisplayName = (cta: string) => {
+   return CampaignConfig.ctaOptionsMap.get(cta)?.value || cta;
+  };
+
+  const getActiveSendingDays = (): string => {
+    return Object.entries(formData.sendingDays)
+      .filter(([, active]: [string, boolean]) => active)
+      .map(([day]: [string, boolean]) => day.charAt(0).toUpperCase() + day.slice(1, 3))
+      .join(', ');
+  };
 
   const estimatedSendDuration = () => {
     const totalProfiles = formData.targeting.totalProfiles || 0;
@@ -97,7 +110,6 @@ const getActiveSendingDays = (): string => {
     
     return completionDate;
   };
-
 
   const hasValidationErrors = () => {
     const errors = [];
@@ -179,10 +191,31 @@ const getActiveSendingDays = (): string => {
               <p className="text-sm text-muted-foreground">{formData.settings.fromEmail || 'No email set'}</p>
             </div>
           </div>
+
+          <Separator />
+
+          {/* Email Personalization Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground mb-2">EMAIL TONE</h4>
+              <div className="flex items-center gap-2">
+                <Volume2 className="h-4 w-4 text-muted-foreground" />
+                <Badge variant="outline">{getToneDisplayName(formData.settings.tone)}</Badge>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground mb-2">CALL-TO-ACTION</h4>
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-muted-foreground" />
+                <Badge variant="outline">{getCtaDisplayName(formData.settings.cta)}</Badge>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Targeting Information */}
+      {/* Target Audience */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -179,48 +179,6 @@ export async function buildQuery(filters: ProfileFilters) {
   });
 }
 
-
-// Create a new profile list (alternative interface)
-export async function createProfileList(data: CreateProfileListParams) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  try {
-    return await db.transaction(async (tx) => {
-      // Create the target list
-      const [newList] = await tx
-        .insert(targetLists)
-        .values({
-          userId: session.user!.id,
-          name: data.name,
-          description: data.description,
-          type: 'profile',
-          createdBy: session.user!.id,
-          sharedWith: data.metadata ? [JSON.stringify(data.metadata)] : [],
-        })
-        .returning();
-
-      // Insert profiles if provided
-      if (data.profiles && data.profiles.length > 0) {
-        await tx.insert(targetListProfiles).values(
-          data.profiles.map(profile => 
-           mapProfileToTargetList(profile, newList.id)
-          )
-        );
-      }
-
-      revalidatePath("/profiles");
-      revalidatePath("/profile-lists");
-      return newList;
-    });
-  } catch (error) {
-    console.error("Error creating profile list:", error);
-    throw new Error("Failed to create profile list");
-  }
-}
-
 // Save a new profile list with rich profile data
 export async function saveProfileList(data: SaveProfileListParams) {
   const session = await auth();

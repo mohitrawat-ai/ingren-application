@@ -21,10 +21,9 @@ export type SettingsFormData = {
   };
   campaignSettings: {
     timezone: string;
-    trackOpens: boolean;
-    trackClicks: boolean;
+    tone: string;
+    cta: string;
     dailySendLimit: number;
-    unsubscribeLink: boolean;
     sendingDays: {
       monday: boolean;
       tuesday: boolean;

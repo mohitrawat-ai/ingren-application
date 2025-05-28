@@ -13,6 +13,6 @@ export const PAGINATION_CONFIG = {
 export const getPaginationConfig = () => {
   return {
     ...PAGINATION_CONFIG,
-    DEFAULT_PAGE_SIZE: parseInt(process.env.NEXT_PUBLIC_DEFAULT_PAGE_SIZE || PAGINATION_CONFIG.DEFAULT_PAGE_SIZE.toString()),
+    DEFAULT_PAGE_SIZE: parseInt(process.env.NEXT_PUBLIC_DEFAULT_PAGE_SIZE ?? PAGINATION_CONFIG.DEFAULT_PAGE_SIZE.toString()),
   };
 };

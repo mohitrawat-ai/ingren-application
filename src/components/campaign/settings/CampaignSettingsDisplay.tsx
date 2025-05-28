@@ -3,16 +3,15 @@
 
 import { format } from "date-fns";
 import { toZonedTime } from 'date-fns-tz';
+import * as campaignConfig from "@/lib/config/campaign";
 import { 
   Mail, 
   Clock, 
-  Eye, 
-  MousePointer, 
-  Unlink, 
   Calendar,
   Settings,
-  Shield,
-  Send
+  Send,
+  Volume2,
+  Target
 } from "lucide-react";
 
 import {
@@ -24,35 +23,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { CampaignSettings, CampaignSendingDays } from "@/lib/schema/types";
 
-// Types based on your schema
-interface CampaignSettings {
-  id: number;
-  campaignId?: number;
-  fromName: string;
-  fromEmail: string;
-  emailService: string;
-  timezone: string;
-  trackOpens: boolean;
-  trackClicks: boolean;
-  dailySendLimit: number;
-  unsubscribeLink: boolean;
-  sendingStartTime: string; // HH:MM:SS format in UTC
-  sendingEndTime: string;   // HH:MM:SS format in UTC
-  startDate: Date;
-}
-
-interface CampaignSendingDays {
-  id?: number;
-  campaignId?: number;
-  monday: boolean;
-  tuesday: boolean;
-  wednesday: boolean;
-  thursday: boolean;
-  friday: boolean;
-  saturday: boolean;
-  sunday: boolean;
-}
 
 interface CampaignSettingsDisplayProps {
   settings: CampaignSettings;
@@ -87,13 +59,17 @@ export function CampaignSettingsDisplay({
 
   // Get email service display name
   const getEmailServiceName = (service: string) => {
-    const serviceMap: Record<string, string> = {
-      'sendgrid': 'SendGrid',
-      'mailchimp': 'Mailchimp', 
-      'ses': 'Amazon SES',
-      'smtp': 'Custom SMTP'
-    };
-    return serviceMap[service] || service;
+    return campaignConfig.emailServicesMap.get(service)?.value || service;
+  };
+
+  // Get tone display name
+  const getToneDisplayName = (tone: string) => {
+    return campaignConfig.toneOptionsMap.get(tone)?.value || tone;
+  };
+
+  // Get CTA display name
+  const getCtaDisplayName = (cta: string) => {
+    return campaignConfig.ctaOptionsMap.get(cta)?.value || cta;
   };
 
   // Get enabled sending days
@@ -152,6 +128,48 @@ export function CampaignSettingsDisplay({
         </CardContent>
       </Card>
 
+      {/* Email Personalization */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Email Personalization
+          </CardTitle>
+          <CardDescription>
+            Email tone and call-to-action configuration
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <Volume2 className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Email Tone</p>
+                  <p className="text-xs text-muted-foreground">Communication style</p>
+                </div>
+              </div>
+              <Badge variant="outline">
+                {getToneDisplayName(settings.tone)}
+              </Badge>
+            </div>
+
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <Target className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Call-to-Action</p>
+                  <p className="text-xs text-muted-foreground">Primary action goal</p>
+                </div>
+              </div>
+              <Badge variant="outline">
+                {getCtaDisplayName(settings.cta)}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Sending Schedule */}
       <Card>
         <CardHeader>
@@ -205,78 +223,6 @@ export function CampaignSettingsDisplay({
               {formatTimeForDisplay(settings.sendingStartTime, settings.timezone)} - {formatTimeForDisplay(settings.sendingEndTime, settings.timezone)}
               <span className="text-xs text-muted-foreground">({settings.timezone})</span>
             </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tracking & Features */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Tracking & Features
-          </CardTitle>
-          <CardDescription>
-            Email tracking and additional features configuration
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Track Opens</p>
-                    <p className="text-xs text-muted-foreground">Monitor email open rates</p>
-                  </div>
-                </div>
-                <Badge variant={settings.trackOpens ? "default" : "secondary"}>
-                  {settings.trackOpens ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <MousePointer className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Track Clicks</p>
-                    <p className="text-xs text-muted-foreground">Monitor link click rates</p>
-                  </div>
-                </div>
-                <Badge variant={settings.trackClicks ? "default" : "secondary"}>
-                  {settings.trackClicks ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Unlink className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Unsubscribe Link</p>
-                    <p className="text-xs text-muted-foreground">Include unsubscribe option</p>
-                  </div>
-                </div>
-                <Badge variant={settings.unsubscribeLink ? "default" : "secondary"}>
-                  {settings.unsubscribeLink ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Compliance</p>
-                    <p className="text-xs text-muted-foreground">Email compliance status</p>
-                  </div>
-                </div>
-                <Badge variant="default">
-                  Configured
-                </Badge>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>

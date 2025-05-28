@@ -18,13 +18,12 @@ export const campaignSettings = pgTable('campaign_settings', {
   fromEmail: text('from_email').notNull(),
   emailService: text('email_service').notNull(),
   timezone: text('timezone').notNull(),
-  trackOpens: boolean('track_opens').notNull().default(true),
-  trackClicks: boolean('track_clicks').notNull().default(true),
   dailySendLimit: integer('daily_send_limit').notNull().default(500),
-  unsubscribeLink: boolean('unsubscribe_link').notNull().default(true),
   sendingStartTime: text('sending_start_time').notNull(),
   sendingEndTime: text('sending_end_time').notNull(),
   startDate: timestamp('start_date').notNull().defaultNow(),
+  tone: text('tone').notNull().default('professional'), // professional, friendly, casual, formal
+  cta: text('cta').notNull().default('schedule_call'), 
 });
 
 export const campaignSendingDays = pgTable('campaign_sending_days', {

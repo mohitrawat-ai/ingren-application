@@ -3,27 +3,23 @@
 
 import { revalidatePath } from "next/cache";
 import { db as dbClient } from "@/lib/db";
-import { auth } from "@/lib/auth";
 import { targetLists } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
+import { requireAuth } from "@/lib/utils/auth-guard";
+import { ownershipFilters } from "@/lib//utils/entity-filters";
 
 const db = await dbClient();
 
 // Mark a profile list as used in campaigns
 export async function markProfileListAsUsedInCampaigns(profileListId: number) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const {userId} = await requireAuth();
 
   try {
     await db.transaction(async (tx) => {
       // Verify ownership
       const profileList = await tx.query.targetLists.findFirst({
         where: and(
-          eq(targetLists.id, profileListId),
-          eq(targetLists.userId, session.user!.id || "-1"),
-          eq(targetLists.type, 'profile')
+          ownershipFilters.targetLists(userId, profileListId, 'profile'),
         ),
       });
 
@@ -52,16 +48,11 @@ export async function markProfileListAsUsedInCampaigns(profileListId: number) {
 
 // Get profile list usage statistics
 export async function getProfileListUsageStats(profileListId: number) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
+  const {userId} = await requireAuth();
 
   const profileList = await db.query.targetLists.findFirst({
     where: and(
-      eq(targetLists.id, profileListId),
-      eq(targetLists.userId, session.user.id),
-      eq(targetLists.type, 'profile')
+      ownershipFilters.targetLists(userId, profileListId, 'profile'),
     ),
     with: {
       enrollments: {
@@ -90,16 +81,11 @@ export async function getProfileListUsageStats(profileListId: number) {
 
 // Check if profile list can be deleted
 export async function canDeleteProfileList(profileListId: number): Promise<boolean> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return false;
-  }
+  const {userId} = await requireAuth();
 
   const profileList = await db.query.targetLists.findFirst({
     where: and(
-      eq(targetLists.id, profileListId),
-      eq(targetLists.userId, session.user.id),
-      eq(targetLists.type, 'profile')
+      ownershipFilters.targetLists(userId, profileListId, 'profile'),
     ),
     with: {
       enrollments: true,

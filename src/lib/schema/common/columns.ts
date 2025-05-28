@@ -1,16 +1,9 @@
-// src/lib/tables/target-list-contacts.ts - Updated with unified rich structure
-import { pgTable, text, integer, serial, timestamp, json, boolean } from "drizzle-orm/pg-core";
-import { targetLists } from "@/lib/tables/target-lists";
+import {text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 
-// UNIFIED: Rich profile structure (same as campaign_enrollment_profiles)
-export const targetListProfiles = pgTable('target_list_profiles', {
-  id: serial('id').primaryKey(),
-  targetListId: integer('target_list_id').notNull().references(() => targetLists.id, { onDelete: 'cascade' }),
-  
-  // Core profile identification
-  profileId: text('profile_id').notNull(), // Original profile ID from provider
-  
-  // Basic identity fields
+
+export const profileColumns = {
+      // Core profile identification
+  profileId: text('profile_id').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
   fullName: text('full_name').notNull(),
@@ -18,8 +11,8 @@ export const targetListProfiles = pgTable('target_list_profiles', {
   // Professional role
   jobTitle: text('job_title').notNull(),
   department: text('department'),
-  managementLevel: text('management_level'), // executive, manager, individual_contributor
-  seniorityLevel: text('seniority_level'), // c-level, vp, director, manager, senior, mid-level, junior
+  managementLevel: text('management_level'),
+  seniorityLevel: text('seniority_level'),
   isDecisionMaker: boolean('is_decision_maker').default(false),
   
   // Contact information
@@ -48,15 +41,10 @@ export const targetListProfiles = pgTable('target_list_profiles', {
   recentJobChange: boolean('recent_job_change').default(false),
   
   // Enrichment data
-  confidence: integer('confidence'), // 0-100 confidence score
+  confidence: integer('confidence'),
   dataSource: text('data_source').notNull().default('coresignal'),
   lastEnriched: timestamp('last_enriched'),
   
-  // Legacy compatibility fields (keeping for backward compatibility)
-  apolloProspectId: text('apollo_prospect_id'), // For backward compatibility
-  additionalData: json('additional_data').default({}),
-  
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
-  lastSynced: timestamp('last_synced'),
-});
+}

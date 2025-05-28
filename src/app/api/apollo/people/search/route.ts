@@ -1,15 +1,12 @@
 // src/app/api/apollo/people/search/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from "@/lib/auth";
 import { faker } from '@faker-js/faker';
+import { requireAuth } from '@/lib/utils/auth-guard';
 
 // Mock Apollo people search
 export async function POST(request: NextRequest) {
   // Check authentication
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  await requireAuth();
 
   try {
     const { 

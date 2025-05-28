@@ -1,6 +1,7 @@
-import { pgTable, text, integer, serial, timestamp, boolean, json } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, timestamp, json } from "drizzle-orm/pg-core";
 import { campaigns } from "@/lib/schema/campaigns/tables";
-import { targetLists } from "../profiles/tables";
+import { targetLists } from "@/lib/schema/profiles/tables";
+import * as common from "@/lib/schema/common/columns";
 
 export const campaignEnrollments = pgTable('campaign_enrollments', {
   id: serial('id').primaryKey(),
@@ -14,39 +15,8 @@ export const campaignEnrollments = pgTable('campaign_enrollments', {
 export const campaignEnrollmentProfiles = pgTable('campaign_enrollment_profiles', {
   id: serial('id').primaryKey(),
   campaignEnrollmentId: integer('campaign_enrollment_id').references(() => campaignEnrollments.id, { onDelete: 'cascade' }).notNull(),
-  
-  // IDENTICAL structure to target_list_profiles (minus target_list_id, plus campaign_enrollment_id)
-  profileId: text('profile_id').notNull(),
-  firstName: text('first_name').notNull(),
-  lastName: text('last_name').notNull(),
-  fullName: text('full_name').notNull(),
-  jobTitle: text('job_title').notNull(),
-  department: text('department'),
-  managementLevel: text('management_level'),
-  seniorityLevel: text('seniority_level'),
-  isDecisionMaker: boolean('is_decision_maker').default(false),
-  email: text('email'),
-  phone: text('phone'),
-  linkedinUrl: text('linkedin_url'),
-  city: text('city').notNull(),
-  state: text('state').notNull(),
-  country: text('country').notNull(),
-  companyId: text('company_id'),
-  companyName: text('company_name').notNull(),
-  companyIndustry: text('company_industry'),
-  companySize: integer('company_size'),
-  companySizeRange: text('company_size_range'),
-  companyRevenue: text('company_revenue'),
-  companyDescription: text('company_description'),
-  companyDomain: text('company_domain'),
-  companyFounded: integer('company_founded'),
-  tenureMonths: integer('tenure_months'),
-  recentJobChange: boolean('recent_job_change').default(false),
-  confidence: integer('confidence'),
-  dataSource: text('data_source').notNull().default('coresignal'),
-  lastEnriched: timestamp('last_enriched'),
   enrolledAt: timestamp('enrolled_at').notNull().defaultNow(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  ...common.profileColumns
 });
 
 export const campaignProfileOperations = pgTable('campaign_profile_operations', {

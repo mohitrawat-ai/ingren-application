@@ -1,15 +1,12 @@
 // src/app/api/apollo/organizations/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from "@/lib/auth";
 import { faker } from '@faker-js/faker';
+import { requireAuth } from '@/lib/utils/auth-guard';
 
 // Mock Apollo organization search
 export async function POST(request: NextRequest) {
   // Check authentication
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  await requireAuth();
 
   try {
     const { name, page = 1, per_page = 10 } = await request.json();

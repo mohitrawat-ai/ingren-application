@@ -6,6 +6,9 @@ export async function requireAuth() {
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
+  if (!session.user?.tenantId) {
+    throw new Error("Unauthorized");
+  }
   return {
     userId: session.user.id,
     tenantId: session.user.tenantId,

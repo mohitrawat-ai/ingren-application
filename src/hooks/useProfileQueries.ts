@@ -48,6 +48,9 @@ export function useBatchProfiles(profileIds: string[], enabled = true) {
     gcTime: 1000 * 60 * 60 * 2, // 2 hours
     retry: false, // No automatic retry
     throwOnError: false,
+    refetchOnWindowFocus: false, // IMPORTANT: Prevent refetch on window focus
+    refetchOnMount: false, // IMPORTANT: Prevent refetch on component mount
+    refetchOnReconnect: false, // IMPORTANT: Prevent refetch on reconnect
   });
 }
 
@@ -92,7 +95,8 @@ export function useProfileSearch(
       pageSize: 1000, // Get max results in one call
     }),
     enabled: hasSearched,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 15, // 15 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
     retry: 1,
     refetchOnWindowFocus: false,
   });

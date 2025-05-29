@@ -29,7 +29,7 @@ export interface CreateProfileListParams {
 const db = await dbClient();
 
 // Base API URL for profile service
-const PROFILE_API_BASE = process.env.NEXT_PUBLIC_PROVIDERS_INGREN_API_URL || 'http://localhost:3004/api/provider';
+const PROFILE_API_BASE = process.env.NEXT_PUBLIC_INGREN_API_URL + "/provider" || 'http://localhost:3004/api/provider';
 const API_KEY = process.env.INGREN_API_KEY || '';
 
 // Validate configuration

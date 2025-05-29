@@ -1,21 +1,10 @@
-// src/components/resources/ResourceGrid.tsx
+// Enhanced ResourceGrid.tsx with new preview component
 
-import {
-  Trash2,
-  Presentation,
-  ExternalLink,
-  Link as LinkIcon,
-  Tag,
-  Calendar,
-} from 'lucide-react';
-import { type ResourceItem, getTypeConfig, getFileIcon, canPreview } from './types';
-
-interface ResourceGridProps {
-  items: ResourceItem[];
-  onDelete: (id: number) => void;
-}
-
-export function ResourceGrid({ items, onDelete }: Readonly<ResourceGridProps>) {
+import { Eye, ExternalLink, Trash2, Calendar, LinkIcon, Tag } from 'lucide-react';
+import { type ResourceItem, getPreviewType } from './types';
+import { getTypeConfig, getFileIcon, canPreview } from './types';
+import {ResourcePreview} from './ResourcePreview';
+export function ResourceGrid({ items, onDelete }: Readonly<{ items: ResourceItem[]; onDelete: (id: number) => void }>) {
   if (items.length === 0) {
     return null;
   }
@@ -26,6 +15,7 @@ export function ResourceGrid({ items, onDelete }: Readonly<ResourceGridProps>) {
         const typeConfig = getTypeConfig(item.type);
         const IconComponent = typeConfig.icon;
         const fileIcon = getFileIcon(item.fileType, item.url);
+        const previewType = getPreviewType(item);
         
         return (
           <div key={item.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
@@ -63,16 +53,8 @@ export function ResourceGrid({ items, onDelete }: Readonly<ResourceGridProps>) {
                 <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{item.description}</p>
               )}
 
-              {/* PDF Preview for uploaded PDFs */}
-              {canPreview(item) && (
-                <div className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                  <iframe
-                    src={`${item.url}#toolbar=0&navpanes=0&scrollbar=0`}
-                    className="w-full h-48"
-                    title={`Preview of ${item.title}`}
-                  />
-                </div>
-              )}
+              {/* Enhanced Preview */}
+              <ResourcePreview item={item} />
 
               {/* Tags */}
               {item.tags.length > 0 && (
@@ -96,14 +78,15 @@ export function ResourceGrid({ items, onDelete }: Readonly<ResourceGridProps>) {
                   {new Date(item.createdAt).toLocaleDateString()}
                 </div>
                 <div className="flex gap-2">
-                  {/* Preview button for PDFs */}
+                  {/* Enhanced Preview button */}
                   {canPreview(item) && (
                     <button
                       onClick={() => window.open(item.url, '_blank')}
                       className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 text-sm font-medium transition-colors"
                     >
-                      <Presentation className="w-4 h-4" />
-                      Preview
+                      <Eye className="w-4 h-4" />
+                      {previewType === 'pdf' ? 'View PDF' : 
+                       previewType === 'ppt' ? 'View Slides' : 'Open Page'}
                     </button>
                   )}
                   
@@ -116,7 +99,7 @@ export function ResourceGrid({ items, onDelete }: Readonly<ResourceGridProps>) {
                     className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
                   >
                     <LinkIcon className="w-4 h-4" />
-                    {item.isUploaded ? 'Download' : 'View'}
+                    {item.isUploaded ? 'Download' : 'Visit'}
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>

@@ -1,4 +1,4 @@
-// src/components/resources/types.ts
+// Enhanced types.ts - Add more preview capabilities
 import {
   Globe,
   FileText,
@@ -83,6 +83,44 @@ export const itemTypes: ItemType[] = [
   }
 ];
 
+// Enhanced preview capabilities
+export const getPreviewType = (item: ResourceItem): 'pdf' | 'ppt' | 'website' | 'none' => {
+  // PDF files
+  if (item.isUploaded && item.fileType?.includes('pdf')) {
+    return 'pdf';
+  }
+  
+  // PowerPoint files
+  if (item.isUploaded && (
+    item.fileType?.includes('presentation') || 
+    item.fileType?.includes('powerpoint') ||
+    item.url.includes('.ppt') ||
+    item.url.includes('.pptx')
+  )) {
+    return 'ppt';
+  }
+  
+  // Website URLs (company info, blog posts, etc.)
+  if (!item.isUploaded && isValidUrl(item.url)) {
+    return 'website';
+  }
+  
+  return 'none';
+};
+
+export const canPreview = (item: ResourceItem): boolean => {
+  return getPreviewType(item) !== 'none';
+};
+
+export const isValidUrl = (url: string): boolean => {
+  try {
+    new URL(url);
+    return url.startsWith('http://') || url.startsWith('https://');
+  } catch {
+    return false;
+  }
+};
+
 // Helper functions
 export const getTypeConfig = (type: string): ItemType => {
   return itemTypes.find(t => t.value === type) || itemTypes[0];
@@ -99,8 +137,4 @@ export const getFileIcon = (fileType?: string | null, url?: string) => {
   if (fileType?.includes('presentation') || fileType?.includes('powerpoint')) return '📊';
   if (fileType?.includes('word') || fileType?.includes('document')) return '📝';
   return '🔗';
-};
-
-export const canPreview = (item: ResourceItem) => {
-  return item.isUploaded && item.fileType?.includes('pdf');
 };

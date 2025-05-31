@@ -136,7 +136,7 @@ async function makeApiRequest<T>(endpoint: string, options: RequestInit = {}): P
 
 // Search for profile IDs (used by profile search)
 export async function searchProfileIds(filters: ProviderProfileFilters): Promise<ProfileSearchResponse> {
-  return await makeApiRequest<ProfileSearchResponse>('/profiles/search-ids', {
+  return await makeApiRequest<ProfileSearchResponse>('/profiles/search-ids?provider=coresignal', {
     method: 'POST',
     body: JSON.stringify({ filters }),
   });
@@ -153,7 +153,7 @@ export async function getBatchProfiles(ids: string[]): Promise<ProfileBatchRespo
     throw new Error('Cannot request more than 100 profiles at once');
   }
   
-  return await makeApiRequest<ProfileBatchResponse>('/profiles/batch', {
+  return await makeApiRequest<ProfileBatchResponse>('/profiles/batch?provider=coresignal', {
     method: 'POST',
     body: JSON.stringify({ ids }),
   });
